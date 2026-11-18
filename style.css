@@ -267,3 +267,4 @@ pre.raw { white-space: pre-wrap; font-size: 0.78rem; background: var(--white); p
 .mq .btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 .tips { margin: 14px 0 0; padding-left: 1.1em; color: var(--ink-2, #445); line-height: 1.6; }
 .tips li + li { margin-top: 4px; }
+.dbhead { padding: 14px 20px 8px; font-size: .85rem; color: var(--slate); background: var(--track); border-top: 1px solid var(--line); }

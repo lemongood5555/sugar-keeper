@@ -41,8 +41,14 @@
   };
 
   /* ---------- 영양 계산 ---------- */
+  // 기본 목록(가격·혈당지수·식단 예시 있음) + 직접 추가 + 식약처 DB 검색용
+  const DBF = typeof DB_FOODS !== 'undefined' ? DB_FOODS : [];
   const allFoods = () => FOODS.concat(customFoods);
-  const foodById = id => allFoods().find(f => f.id === id);
+  let byId = null;
+  const foodById = id => {
+    if (!byId || byId.size !== FOODS.length + DBF.length + customFoods.length) byId = new Map(DBF.concat(FOODS, customFoods).map(f => [f.id, f]));
+    return byId.get(id);
+  };
   function entryNut(e) {
     const f = e.food || foodById(e.foodId);
     const o = {}; NUT_KEYS.forEach(k => o[k] = (f ? f[k] || 0 : 0) * e.ratio); return o;
@@ -325,16 +331,32 @@
   function closePicker() { S.picker = null; $('#overlay').classList.add('hidden'); document.body.style.overflow = ''; render(); }
   function showOverlay() { $('#overlay').classList.remove('hidden'); document.body.style.overflow = 'hidden'; renderPicker(); }
 
+  const norm = t => t.replace(/[\s·_]/g, '');
+  const DB_LIMIT = 60;
+  function foodRow(f) {
+    return `<button class="food" data-act="pickfood" data-id="${esc(f.id)}"><span><span class="n">${esc(f.name)}</span><br><span class="u">${esc(f.unit)} · ${f.kcal}kcal${f.db ? ` · ${esc(f.origin.replace('식약처 DB · ', ''))}` : ''}</span></span>
+      <span class="r">${giTag(f.id)}<span class="c tag ${worse(carbLevel(f.carb), sugarLevel(f.sugar))}">탄수화물 ${f.carb}g</span><span class="u num">당류 ${f.sugar}g</span></span></button>`;
+  }
   function foodRows() {
-    const P = S.picker; let list = allFoods();
-    if (P.cat !== '전체') list = list.filter(f => f.cat === P.cat);
-    if (P.q) list = list.filter(f => f.name.includes(P.q));
-    return list.map(f => `<button class="food" data-act="pickfood" data-id="${esc(f.id)}"><span><span class="n">${esc(f.name)}</span><br><span class="u">${esc(f.unit)} · ${f.kcal}kcal</span></span>
-      <span class="r">${giTag(f.id)}<span class="c tag ${worse(carbLevel(f.carb), sugarLevel(f.sugar))}">탄수화물 ${f.carb}g</span><span class="u num">당류 ${f.sugar}g</span></span></button>`).join('')
-      || '<div class="empty">찾는 음식이 없어요.<br>아래에서 직접 추가할 수 있어요.</div>';
+    const P = S.picker, q = norm(P.q || '');
+    const inCat = f => P.cat === '전체' || f.cat === P.cat;
+    const hit = f => !q || norm(f.name).includes(q);
+    const base = allFoods().filter(f => inCat(f) && hit(f));
+    // DB 음식은 검색어가 있거나 '식재료' 분류일 때만 보여줌 (전체 목록이 수천 개라 느려지지 않게)
+    let more = '';
+    if (q || P.cat === '식재료') {
+      const db = DBF.filter(f => inCat(f) && hit(f));
+      // 이름이 검색어로 시작하는 것을 먼저
+      if (q) db.sort((a, b) => (norm(a.name).startsWith(q) ? 0 : 1) - (norm(b.name).startsWith(q) ? 0 : 1) || a.name.length - b.name.length);
+      if (db.length) more = `<div class="dbhead">식약처 DB에서 ${db.length.toLocaleString('ko-KR')}가지${db.length > DB_LIMIT ? ` · 앞의 ${DB_LIMIT}개만 보여요. 검색어를 더 자세히 써 보세요` : ''}</div>` + db.slice(0, DB_LIMIT).map(foodRow).join('');
+    } else {
+      more = `<div class="dbhead">찾는 음식이 없으면 이름으로 검색하세요. 식약처 DB 음식과 식재료 ${DBF.length.toLocaleString('ko-KR')}가지에서 찾아요.</div>`;
+    }
+    if (!base.length && !more.includes('food')) return '<div class="empty">찾는 음식이 없어요.<br>아래에서 직접 추가할 수 있어요.</div>';
+    return base.map(foodRow).join('') + more;
   }
   function chipRow() {
-    const cats = ['전체', ...new Set(allFoods().map(f => f.cat))];
+    const cats = ['전체', ...new Set(allFoods().map(f => f.cat).concat('식재료'))];
     return cats.map(c => `<button class="chip ${c === S.picker.cat ? 'on' : ''}" data-act="pickcat" data-c="${esc(c)}">${esc(c)}</button>`).join('');
   }
 
