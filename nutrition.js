@@ -34,20 +34,47 @@ const NUTRI = {
 
   hasCond(p, c) { return (p.conditions || []).includes(c); },
 
+  /* 제지방량: 체지방률이 있으면 체중 × (1 − 체지방률) */
+  lbm(p) { return p.bodyFat > 0 && p.bodyFat < 70 ? p.weight * (1 - p.bodyFat / 100) : null; },
+
+  /* 목표 체중·기간 → 하루 열량 조정 (지방 1kg ≈ 7,700kcal)
+   * 안전 범위: 감량 하루 −250~−1,000kcal(주 0.25~1kg), 증량 +200~+500kcal(근육은 주 0.25~0.5kg 정도가 현실적) */
+  weightPlan(p, eer) {
+    if (p.goal === 'maintain' || !(p.targetWeight > 0) || !(p.targetWeeks > 0)) return null;
+    const delta = p.targetWeight - p.weight;
+    if ((p.goal === 'diet' && delta >= 0) || (p.goal === 'muscle' && delta <= 0)) return { mismatch: true, delta };
+    const raw = delta * 7700 / (p.targetWeeks * 7);
+    const lo = p.goal === 'diet' ? -1000 : 200, hi = p.goal === 'diet' ? -250 : 500;
+    const adj = Math.max(lo, Math.min(hi, raw));
+    const rate = delta / p.targetWeeks;
+    const weeksNeeded = Math.ceil(Math.abs(delta) * 7700 / (Math.abs(adj) * 7));
+    return { delta, rate, raw: Math.round(raw), adj: Math.round(adj), clamped: Math.round(raw) !== Math.round(adj), fast: raw < lo || raw > hi, weeksNeeded };
+  },
+
   targets(p) {
     const eer = this.eer(p);
     const bmi = this.bmi(p);
+    const plan = this.weightPlan(p, eer);
     let kcal = eer;
-    if (p.goal === 'diet') kcal = Math.max(eer - 500, p.sex === 'M' ? 1500 : 1200);
-    if (p.goal === 'muscle') kcal = eer + 300;
+    if (plan && !plan.mismatch) kcal = eer + plan.adj;
+    else if (p.goal === 'diet') kcal = eer - 500;
+    else if (p.goal === 'muscle') kcal = eer + 300;
+    if (p.goal === 'diet') kcal = Math.max(kcal, p.sex === 'M' ? 1500 : 1200);
     kcal = Math.round(kcal / 50) * 50;
 
-    // 단백질: 비만이면 표준체중 기준으로 계산
+    // 단백질: KDRI 권장 기준(비만이면 표준체중). 체지방률이 있으면 제지방량 기준으로 올려 잡되 체중당 2.0g을 넘지 않게
     const refWt = bmi >= 25 ? this.ibw(p) : p.weight;
     let protPerKg = { diet: 1.2, maintain: 0.91, muscle: 1.4 }[p.goal] || 0.91;
     const kidney = this.hasCond(p, 'kidney');
     if (kidney) protPerKg = 0.8;
-    const protein = Math.round(protPerKg * refWt);
+    let protein = protPerKg * refWt, protBasis = `${protPerKg}g × ${Math.round(refWt * 10) / 10}kg`;
+    const lbm = this.lbm(p);
+    if (!kidney && lbm && p.goal !== 'maintain') {
+      const perLbm = p.goal === 'muscle' ? 2.2 : 2.0;
+      const byLbm = Math.min(perLbm * lbm, 2.0 * p.weight);
+      if (byLbm > protein) { protein = byLbm; protBasis = `${perLbm}g × 제지방 ${Math.round(lbm * 10) / 10}kg`; }
+    }
+    protein = Math.round(protein);
 
     const fat = Math.round((kcal * 0.25) / 9);
     const carb = Math.round((kcal - protein * 4 - fat * 9) / 4);
@@ -61,7 +88,7 @@ const NUTRI = {
     const meals = {};
     for (const m in MEAL_SPLIT) meals[m] = Math.round(kcal * MEAL_SPLIT[m]);
 
-    return { eer: Math.round(eer), kcal, protein, protPerKg, refWt, fat, carb, sugar, sugarPct, fiber, meals, kidney };
+    return { eer: Math.round(eer), kcal, protein, protPerKg, protBasis, refWt, lbm, plan, fat, carb, sugar, sugarPct, fiber, meals, kidney };
   },
 
   /* 영양판정 (ABCD 중 A·B·C 일부) */
@@ -84,6 +111,21 @@ const NUTRI = {
     if (p.waist) {
       const cut = p.sex === 'M' ? 90 : 85;
       out.push({ grp: '신체계측', name: '허리둘레', val: p.waist + ' cm', note: p.waist >= cut ? `복부비만 (기준 ${cut}cm 이상)` : '정상', lv: p.waist >= cut ? 'bad' : 'ok' });
+    }
+
+    if (p.bodyFat) {
+      const hi = p.sex === 'M' ? 25 : 30, mid = p.sex === 'M' ? 20 : 28;
+      const lv = p.bodyFat >= hi ? 'bad' : p.bodyFat >= mid ? 'warn' : 'ok';
+      let note = lv === 'bad' ? `체지방 과다 (흔히 쓰는 기준 ${hi}% 이상)` : lv === 'warn' ? '경계' : '정상 범위';
+      if (lv === 'bad' && bmi < 23) note += ' · BMI는 정상이라 "마른 비만"일 수 있어요';
+      if (lv === 'ok' && bmi >= 25) note += ' · BMI가 높은 건 근육량 때문일 수 있어요';
+      out.push({ grp: '신체계측', name: '체지방률', val: p.bodyFat + '%', note, lv });
+      const lbm = this.lbm(p);
+      out.push({ grp: '신체계측', name: '제지방량', val: lbm.toFixed(1) + ' kg', note: `체지방량 ${(p.weight - lbm).toFixed(1)}kg`, lv: 'info' });
+    }
+    if (p.smm) {
+      const r = p.smm / p.weight * 100;
+      out.push({ grp: '신체계측', name: '골격근량', val: p.smm + ' kg', note: `체중의 ${r.toFixed(0)}% · 표준 범위는 인바디 결과지를 참고하세요`, lv: 'info' });
     }
 
     const lab = (name, v, unit, fn) => { if (v || v === 0) { const [note, lv] = fn(v); out.push({ grp: '생화학적', name, val: v + ' ' + unit, note, lv }); } };

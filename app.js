@@ -36,7 +36,8 @@
     wiz: { step: 0, d: {} },
     picker: null,
     justFinished: false,
-    planIdx: { breakfast: 0, lunch: 0, dinner: 0, snack: 0 }
+    planIdx: {},
+    planDay: (new Date().getDay() + 6) % 7
   };
 
   /* ---------- 영양 계산 ---------- */
@@ -130,22 +131,77 @@
     return out;
   }
 
-  /* ---------- 식단 예시 ---------- */
+  /* ---------- 식단 예시 (선호 음식 · 주간 식비 반영) ---------- */
+  const won = n => Math.round(n / 100) * 100 >= 10000 ? (Math.round(n / 1000) / 10).toLocaleString('ko-KR') + '만원' : (Math.round(n / 100) * 100).toLocaleString('ko-KR') + '원';
+  const DAY_NAME = ['월', '화', '수', '목', '금', '토', '일'];
+  const dayOf = ds => (new Date(ds + 'T00:00:00').getDay() + 6) % 7;
+  const SEED = { breakfast: 0, lunch: 3, dinner: 6, snack: 1 };
+
+  // 첫 항목(주식)을 0.5~1.5배로 맞추고, 그래도 15% 넘게 많으면 가장 열량이 큰 반찬을 줄임
   function buildMeal(ids, target) {
     const items = ids.map(id => ({ f: foodById(id), r: 1 })).filter(x => x.f);
+    const tot = () => items.reduce((s, x) => s + x.f.kcal * x.r, 0);
     const base = items[0];
-    const rest = items.reduce((s, x) => s + x.f.kcal * x.r, 0) - base.f.kcal;
-    let r = (target - rest) / base.f.kcal;
-    base.r = Math.max(0.5, Math.min(1.5, Math.round(r * 4) / 4));
+    base.r = Math.max(0.5, Math.min(1.5, Math.round(((target - (tot() - base.f.kcal)) / base.f.kcal) * 4) / 4));
+    if (tot() > target * 1.15 && items.length > 1) {
+      const big = items.slice(1).sort((x, y) => y.f.kcal - x.f.kcal)[0];
+      const r = (target - (tot() - big.f.kcal * big.r)) / big.f.kcal;
+      big.r = Math.max(0.5, Math.min(1, Math.round(r * 4) / 4));
+    }
     return items;
   }
-  function planFor(m, T) {
-    const tpls = MEAL_TEMPLATES[m];
-    return buildMeal(tpls[S.planIdx[m] % tpls.length], T.meals[m]);
+  const mealCost = items => items.reduce((s, x) => s + (x.f.price || 0) * x.r, 0);
+
+  // 선호 종류가 있으면 해당 템플릿만, 2개 미만이면 나머지도 뒤에 붙임
+  function candidates(m) {
+    const all = MEAL_TEMPLATES[m], pref = (profile && profile.cuisines) || [];
+    if (!pref.length || m === 'snack') return all;
+    const hit = all.filter(t => t.t.some(x => pref.includes(x)));
+    return hit.length >= 2 ? hit : hit.concat(all.filter(t => !hit.includes(t)));
   }
-  function addPlan(m) {
+
+  let weekCache = null;
+  function weekPlan(T) {
+    const key = JSON.stringify([T.meals, profile.cuisines, profile.budget, S.planIdx]);
+    if (weekCache && weekCache.key === key) return weekCache.v;
+    const C = Object.fromEntries(MEALS.map(m => [m, candidates(m)]));
+    const built = {}; // 템플릿별 계산 결과 캐시
+    const get = (m, i) => { const k = m + i; return built[k] || (built[k] = (() => { const items = buildMeal(C[m][i].ids, T.meals[m]); return { items, cost: mealCost(items) }; })()); };
+    const days = DAY_NAME.map((_, d) => Object.fromEntries(MEALS.map(m => {
+      const n = C[m].length, user = S.planIdx[d + '-' + m] || 0;
+      return [m, { i: (d + SEED[m] + user) % n, user: !!user }];
+    })));
+    const total = () => days.reduce((s, day) => s + MEALS.reduce((t, m) => t + get(m, day[m].i).cost, 0), 0);
+    const budget = profile.budget > 0 ? profile.budget : 0;
+    // 예산을 넘으면 가장 비싼 끼니부터 한 단계 싼 예시로 바꿈 (직접 고른 예시는 유지)
+    for (let guard = 0; budget && total() > budget && guard < 300; guard++) {
+      let best = null;
+      days.forEach((day, d) => MEALS.forEach(m => {
+        if (day[m].user) return;
+        const cur = get(m, day[m].i).cost;
+        let cheaper = null;
+        C[m].forEach((_, i) => { const c = get(m, i).cost; if (c < cur && (!cheaper || c > cheaper.c)) cheaper = { i, c }; });
+        if (cheaper && (!best || cur > best.cur)) best = { d, m, i: cheaper.i, cur };
+      }));
+      if (!best) break;
+      days[best.d][best.m].i = best.i;
+    }
+    // 가장 싼 조합으로도 예산을 넘으면, 같은 메뉴만 반복되지 않게 싼 예시 3개를 요일별로 돌려 씀
+    if (budget && total() > budget) MEALS.forEach(m => {
+      const cheap = C[m].map((_, i) => i).sort((a, b) => get(m, a).cost - get(m, b).cost).slice(0, 3);
+      days.forEach((day, d) => { if (!day[m].user) day[m].i = cheap[(d + SEED[m]) % cheap.length]; });
+    });
+    const v = {
+      days: days.map(day => Object.fromEntries(MEALS.map(m => [m, get(m, day[m].i)]))),
+      total: total(), budget
+    };
+    weekCache = { key, v };
+    return v;
+  }
+  function planFor(m, T, day) { return weekPlan(T).days[day ?? dayOf(S.date)][m].items; }
+  function addPlan(m, day) {
     const T = getT(); if (!T) return;
-    const items = planFor(m, T);
+    const items = planFor(m, T, day);
     const list = (logs[S.date] = logs[S.date] || []);
     items.forEach((x, i) => list.push({ id: Date.now().toString(36) + i, meal: m, foodId: x.f.id, ratio: x.r, photoBefore: null, photoAfter: null }));
     store.save('dk_logs', logs);
@@ -402,19 +458,46 @@
      식단 / 내 정보 / 알아두기
      ===================================================== */
   function viewPlan() {
-    const T = getT(); let tot = Object.fromEntries(NUT_KEYS.map(k => [k, 0]));
+    const T = getT(), W = weekPlan(T), d = S.planDay, day = W.days[d];
+    let tot = Object.fromEntries(NUT_KEYS.map(k => [k, 0]));
+    const dayCost = x => MEALS.reduce((s, m) => s + x[m].cost, 0);
     const blocks = MEALS.map(m => {
-      const items = planFor(m, T), s = sumNut(items.map(x => ({ food: x.f, ratio: x.r })));
+      const { items, cost } = day[m], s = sumNut(items.map(x => ({ food: x.f, ratio: x.r })));
       NUT_KEYS.forEach(k => tot[k] += s[k]);
-      return `<div class="pm"><div class="h"><h3>${MEAL_NAME[m]}</h3><span class="muted sm">목표 ${T.meals[m]}kcal</span></div>
+      return `<div class="pm"><div class="h"><h3>${MEAL_NAME[m]}</h3><span class="muted sm num">목표 ${T.meals[m]}kcal · 약 ${won(cost)}</span></div>
         ${menuList(items)}<div class="sum num">${Math.round(s.kcal)}kcal · 탄수화물 ${Math.round(s.carb)}g · 당류 ${r1(s.sugar)}g · 단백질 ${r1(s.protein)}g</div>
-        <div class="row"><button class="btn alt sm" data-act="plannext" data-m="${m}" data-back="plan">다른 예시</button><button class="btn sm" data-act="planadd" data-m="${m}">이 끼니 기록</button></div></div>`;
+        <div class="row"><button class="btn alt sm" data-act="plannext" data-m="${m}" data-day="${d}">다른 예시</button><button class="btn sm" data-act="planadd" data-m="${m}" data-day="${d}">이 끼니 기록</button></div></div>`;
     }).join('');
-    return `<div class="top"><h1>식단 예시</h1></div>
-      <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0">하루 ${T.kcal}kcal · 아침 25% · 점심 30% · 저녁 30% · 간식 15%로 나눴어요. 먹은 끼니는 <b>이 끼니 기록</b>으로 한 번에 남길 수 있어요.</p>${blocks}</section>
-      <section class="sec"><h2>하루 합계</h2>${meter('열량', tot.kcal, T.kcal, 'kcal')}${meter('탄수화물', tot.carb, T.carb, 'g')}${meter('당류', tot.sugar, T.sugar, 'g')}${meter('단백질', tot.protein, T.protein, 'g', 'min')}</section>
+    const pref = (profile.cuisines || []).map(c => (CUISINES.find(x => x[0] === c) || [])[1]).filter(Boolean);
+    const over = W.budget && W.total > W.budget;
+    const budgetHtml = W.budget
+      ? `<div class="note ${over ? 'bad' : 'good'}">이번 주 식단 약 <b class="num">${won(W.total)}</b> · 예산 ${won(W.budget)}${over ? `<br>예산보다 약 ${won(W.total - W.budget)} 많아요. 외식 일품요리 대신 집밥 예시를 고르거나 예산을 다시 정해 보세요.` : ' 안에 맞췄어요.'}</div>`
+      : `<p class="muted sm" style="margin:0">이번 주 식단 약 <b class="num">${won(W.total)}</b>이에요. 내 정보에서 주간 식비를 정하면 그 안에 맞춰 드려요.</p>`;
+    const qs = [...new Set(['저당 식단', ...(profile.cuisines || []).map(c => MAP_QUERY[c]).filter(Boolean)])].slice(0, 4);
+    const enc = encodeURIComponent;
+    return `<div class="top"><h1>일주일 식단</h1></div>
+      <section class="sec" style="padding-top:6px">
+        <p class="muted" style="margin:0 0 10px">하루 ${T.kcal}kcal를 아침 25% · 점심 30% · 저녁 30% · 간식 15%로 나눴어요.${pref.length ? ` 좋아하는 <b>${esc(pref.join(', '))}</b> 위주로 골랐어요.` : ''}</p>
+        ${budgetHtml}
+        <div class="mealtabs days" role="tablist">${W.days.map((x, i) => `<button role="tab" aria-selected="${i === d}" class="${i === d ? 'on' : ''}" data-act="planday" data-v="${i}">${DAY_NAME[i]}<small class="num">${won(dayCost(x))}</small></button>`).join('')}</div>
+        ${blocks}</section>
+      <section class="sec"><h2>${DAY_NAME[d]}요일 합계</h2>${meter('열량', tot.kcal, T.kcal, 'kcal')}${meter('탄수화물', tot.carb, T.carb, 'g')}${meter('당류', tot.sugar, T.sugar, 'g')}${meter('단백질', tot.protein, T.protein, 'g', 'min')}</section>
+      <section class="sec"><h2>밖에서 먹을 때</h2>
+        <p class="muted" style="margin:0 0 10px">지금 위치 근처에서 지도 앱으로 찾아봐요. 당뇨 식단 인증 식당 목록은 없어서, 고르기 쉬운 메뉴로 검색해요.</p>
+        <div class="maps">${qs.map(q => `<div class="mq"><span>${esc(q)}</span><a class="btn alt sm" href="https://map.naver.com/p/search/${enc(q)}" target="_blank" rel="noopener">네이버지도</a><a class="btn alt sm" href="https://map.kakao.com/link/search/${enc(q)}" target="_blank" rel="noopener">카카오맵</a></div>`).join('')}</div>
+        <ul class="tips"><li>밥은 반 공기 먼저 덜어 두고, 잡곡밥이 있으면 바꿔 달라고 하세요.</li><li>구이·찜·샤브샤브처럼 양념이 적은 메뉴가 고르기 쉬워요. 양념갈비·찜닭·탕수육은 당이 많아요.</li><li>회덮밥·초밥은 밥 양이 많아요. 초고추장과 초밥 밥에도 설탕이 들어가요.</li><li>음료는 물이나 보리차로 주문하세요.</li></ul></section>
       <section class="sec"><h2>당류 기준</h2><p class="muted" style="margin:0 0 6px">한국인 영양소 섭취기준은 총당류 20% 이내, 첨가당 10% 이내이고 가당 음료는 가능한 줄이도록 해요. 20%는 넘으면 안 되는 한계선이라, 이 앱은 모두에게 에너지의 10%를 상한으로 잡아요. 2,000kcal라면 50g이에요.</p></section>
-      <section class="sec"><h2>양 가늠하기</h2><p class="muted" style="margin:0">밥 1공기(210g)는 일반 밥공기에 평평하게 담은 양이에요. 고기·생선 1인분은 손바닥 크기, 견과류 한 줌은 약 25g이에요.</p></section>`;
+      <section class="sec"><h2>양 가늠하기</h2><p class="muted" style="margin:0">밥 1공기(210g)는 일반 밥공기에 평평하게 담은 양이에요. 고기·생선 1인분은 손바닥 크기, 견과류 한 줌은 약 25g이에요.</p>
+        <p class="fine">가격은 공공데이터에 없어 앱이 정한 추정치예요. 밥·국·반찬은 집밥 재료비, 덮밥·초밥·탕 같은 일품요리는 외식 1인분 기준이라 지역과 가게마다 달라요.</p></section>`;
+  }
+
+  function planNote(T, p) {
+    const P = T.plan; if (!P) return '';
+    if (P.mismatch) return `<div class="note">목표 체중이 고른 목표와 반대 방향이라 기본값(${p.goal === 'diet' ? '−500' : '+300'}kcal)으로 계산했어요.</div>`;
+    const dir = P.delta > 0 ? '늘리기' : '줄이기', wk = Math.abs(P.rate).toFixed(2).replace(/0$/, '');
+    const head = `목표 ${p.targetWeight}kg까지 ${Math.abs(P.delta).toFixed(1)}kg ${dir} · ${p.targetWeeks}주 (주당 ${wk}kg)`;
+    if (P.fast) return `<div class="note bad"><b>${head}</b><br>이 속도는 하루 ${P.raw > 0 ? '+' : ''}${P.raw}kcal가 필요해 무리예요. ${P.delta > 0 ? '근육은 주 0.25~0.5kg 정도 느는 게 현실적이라' : '주 1kg보다 빨리 빼면 근육이 빠지기 쉬워'} 하루 ${P.adj > 0 ? '+' : ''}${P.adj}kcal로 잡았어요. 이 속도면 약 ${P.weeksNeeded}주가 걸려요.</div>`;
+    return `<div class="note good"><b>${head}</b><br>하루 ${P.adj > 0 ? '+' : ''}${P.adj}kcal를 반영했어요. (지방 1kg ≈ 7,700kcal로 계산)</div>`;
   }
 
   function viewMe() {
@@ -424,14 +507,16 @@
     const lab = { ok: '정상', warn: '주의', bad: '관리 필요' };
     const groups = [...new Set(rows.map(r => r.grp))];
     return `<div class="top"><h1>${S.justFinished ? '목표가 정해졌어요' : '내 정보'}</h1></div>
-      <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0 0 12px">${esc(p.name || '')} · ${p.sex === 'M' ? '남' : '여'} ${p.age}세 · ${p.height}cm · ${p.weight}kg · 목표 ${goalTxt}</p>
+      <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0 0 12px">${esc(p.name || '')} · ${p.sex === 'M' ? '남' : '여'} ${p.age}세 · ${p.height}cm · ${p.weight}kg${p.bodyFat ? ` · 체지방 ${p.bodyFat}%` : ''} · 목표 ${goalTxt}</p>
         <div class="kpis"><div><b class="num">${T.kcal}</b><span>하루 열량 (kcal)</span></div><div><b class="num">${T.carb}g</b><span>탄수화물 · 열량의 ${Math.round(T.carb * 4 / T.kcal * 100)}%</span></div>
-          <div><b class="num">${T.sugar}g</b><span>당류 상한 (에너지의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${T.protPerKg}g × ${r1(T.refWt)}kg)</span></div>
+          <div><b class="num">${T.sugar}g</b><span>당류 상한 (에너지의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${esc(T.protBasis)})</span></div>
           <div><b class="num">${T.fat}g</b><span>지방 (25%)</span></div><div><b class="num">${T.fiber}g</b><span>식이섬유</span></div></div>
         <p class="muted sm" style="margin:10px 0 0">에너지필요추정량 ${T.eer}kcal 기준이에요. 의사나 영양사가 정해 준 목표가 있다면 그 값을 따르세요.</p>
+        ${planNote(T, p)}
+        ${p.cuisines && p.cuisines.length || p.budget ? `<p class="muted sm" style="margin:8px 0 0">식단 예시: ${p.cuisines && p.cuisines.length ? esc(p.cuisines.map(c => (CUISINES.find(x => x[0] === c) || [])[1]).join(', ')) + ' 위주' : '골고루'}${p.budget ? ` · 일주일 식비 ${won(p.budget)}` : ''}</p>` : ''}
         ${T.kidney ? '<div class="note">신장질환이 있어 단백질을 0.8g/kg으로 낮췄어요. 처방량이 있다면 그 값을 따르세요.</div>' : ''}</section>
       ${S.justFinished ? `<section class="sec"><button class="btn" data-act="startlog" data-m="${autoMeal()}">첫 끼니 기록하기</button></section>` : ''}
-      <section class="sec"><h2>영양판정</h2>${groups.map(g => `<h3>${g}</h3>${rows.filter(r => r.grp === g).map(r => `<div class="judge"><div class="a">${r.name}<small>${esc(r.note)}</small></div><div class="b"><b>${esc(r.val)}</b><span class="tag ${dot[r.lv]}">${lab[r.lv]}</span></div></div>`).join('')}`).join('')}</section>
+      <section class="sec"><h2>영양판정</h2>${groups.map(g => `<h3>${g}</h3>${rows.filter(r => r.grp === g).map(r => `<div class="judge"><div class="a">${r.name}<small>${esc(r.note)}</small></div><div class="b"><b>${esc(r.val)}</b>${r.lv === 'info' ? '' : `<span class="tag ${dot[r.lv]}">${lab[r.lv]}</span>`}</div></div>`).join('')}`).join('')}</section>
       <section class="sec"><button class="btn alt" data-act="wizedit">정보 수정하기</button></section>`;
   }
 
@@ -461,10 +546,13 @@
       { k: 'name', type: 'text', label: '이름 또는 부르는 말', ph: '예: 아버지' },
       { k: 'sex', type: 'seg', label: '성별', opts: [['M', '남자'], ['F', '여자']] },
       { k: 'age', type: 'num', label: '나이', unit: '세', req: '나이를 입력해 주세요' }] },
-    { t: '몸 상태를 알려 주세요', s: '키와 체중은 꼭 필요해요. 허리둘레는 모르면 비워 두세요.', f: [
+    { t: '몸 상태를 알려 주세요', s: '키와 체중은 꼭 필요해요. 나머지는 모르면 비워 두세요.', f: [
       { k: 'height', type: 'num', label: '키', unit: 'cm', step: '0.1', req: '키를 입력해 주세요' },
       { k: 'weight', type: 'num', label: '체중', unit: 'kg', step: '0.1', req: '체중을 입력해 주세요' },
       { k: 'waist', type: 'num', label: '허리둘레 (선택)', unit: 'cm', step: '0.1' }] },
+    { t: '인바디 결과가 있나요?', s: '체지방률을 알면 BMI로는 안 보이는 "마른 비만"이나 근육형 체형을 구분하고, 단백질을 제지방량 기준으로 잡아요.', skip: true, f: [
+      { k: 'bodyFat', type: 'num', label: '체지방률', unit: '%', step: '0.1' },
+      { k: 'smm', type: 'num', label: '골격근량', unit: 'kg', step: '0.1' }] },
     { t: '최근 혈당 검사 결과가 있나요?', s: '검진표에 있는 것만 적어도 돼요. 없으면 건너뛰세요.', skip: true, f: [
       { k: 'fbs', type: 'num', label: '공복혈당', unit: 'mg/dL' },
       { k: 'ppg', type: 'num', label: '식후 2시간 혈당', unit: 'mg/dL' },
@@ -481,12 +569,17 @@
       { k: 'pa', type: 'opts', label: '운동·활동량', opts: [['1', '거의 앉아서 지내요', ''], ['2', '가볍게 걷는 정도', ''], ['3', '주 3~5회 운동해요', ''], ['4', '매일 힘들게 움직여요', '']] },
       { k: 'conditions', type: 'multi', label: '해당하는 건강 상태 (모두 선택)', opts: [['diabetes', '당뇨병'], ['htn', '고혈압'], ['dyslipid', '이상지질혈증'], ['kidney', '신장질환']] }] },
     { t: '식단 목표는 무엇인가요?', s: '목표에 따라 하루 열량이 달라져요.', f: [
-      { k: 'goal', type: 'opts', label: '', opts: [['maintain', '지금 체중 유지', '필요한 열량만큼 드세요'], ['diet', '체중 줄이기', '필요 열량보다 500kcal 적게'], ['muscle', '근육 늘리기', '필요 열량보다 300kcal 많게, 단백질 높게']] }] }
+      { k: 'goal', type: 'opts', label: '', opts: [['maintain', '지금 체중 유지', '필요한 열량만큼 드세요'], ['diet', '체중 줄이기', '기본은 필요 열량보다 500kcal 적게'], ['muscle', '근육 늘리기', '기본은 필요 열량보다 300kcal 많게, 단백질 높게']] },
+      { k: 'targetWeight', type: 'num', label: '목표 체중 (선택)', unit: 'kg', step: '0.1', when: d => d.goal !== 'maintain' },
+      { k: 'targetWeeks', type: 'num', label: '목표 기간 (선택)', unit: '주', when: d => d.goal !== 'maintain' }] },
+    { t: '좋아하는 음식과 식비', s: '식단 예시를 좋아하는 종류로, 일주일 식비 안에서 짜 드려요. 정하지 않으면 골고루 보여 드려요.', skip: true, f: [
+      { k: 'cuisines', type: 'multi', label: '좋아하는 음식 (여러 개 선택)', opts: CUISINES },
+      { k: 'budget', type: 'num', label: '일주일 식비 (1인, 간식 포함)', unit: '만원', step: '0.5' }] }
   ];
   const DEF = { sex: 'M', job: 'office', pa: '1', goal: 'maintain', conditions: [] };
 
   function startWizard(prefill) {
-    S.wiz = { step: 0, d: Object.assign({}, DEF, prefill ? Object.assign({}, prefill, { pa: String(prefill.pa), conditions: [...(prefill.conditions || [])] }) : {}) };
+    S.wiz = { step: 0, d: Object.assign({}, DEF, prefill ? Object.assign({}, prefill, { pa: String(prefill.pa), conditions: [...(prefill.conditions || [])], cuisines: [...(prefill.cuisines || [])], budget: prefill.budget ? prefill.budget / 10000 : '' }) : {}) };
     S.route = 'wizard'; render();
   }
   function wizField(f, d) {
@@ -501,7 +594,8 @@
   function viewWizard() {
     const W = S.wiz, st = WIZ[W.step], last = W.step === WIZ.length - 1;
     return `<div class="wiz"><div class="progress" aria-label="${W.step + 1}단계 / ${WIZ.length}단계">${WIZ.map((_, i) => `<i class="${i <= W.step ? 'on' : ''}"></i>`).join('')}</div>
-      <h1>${st.t}</h1><p class="sub">${st.s}</p>${st.f.map(f => wizField(f, W.d)).join('')}
+      <h1>${st.t}</h1><p class="sub">${st.s}</p>${st.f.filter(f => !f.when || f.when(W.d)).map(f => wizField(f, W.d)).join('')}
+      ${st.f.some(f => f.k === 'targetWeight') && W.d.goal !== 'maintain' ? '<p class="muted sm">목표 체중과 기간을 넣으면 하루 열량을 그 속도에 맞춰요. 건강한 속도를 넘으면 안전한 범위로 줄여요.</p>' : ''}
       ${st.skip ? '<div class="skip"><button class="btn quiet" data-act="wnext" data-skip="1">모르겠어요 · 건너뛰기</button></div>' : ''}</div>
       <div class="stickybar"><div class="w row">${W.step > 0 ? '<button class="btn alt" style="flex:0 0 96px" data-act="wback">이전</button>' : ''}<button class="btn" data-act="wnext">${last ? '목표 계산하기' : '다음'}</button></div></div>`;
   }
@@ -509,7 +603,10 @@
     const d = S.wiz.d, num = k => { const v = parseFloat(d[k]); return isNaN(v) ? null : v; };
     profile = { name: (d.name || '').trim(), sex: d.sex, age: num('age'), height: num('height'), weight: num('weight'), waist: num('waist'),
       fbs: num('fbs'), ppg: num('ppg'), hba1c: num('hba1c'), tc: num('tc'), tg: num('tg'), ldl: num('ldl'), hdl: num('hdl'), sbp: num('sbp'), dbp: num('dbp'),
-      job: d.job, pa: Number(d.pa), conditions: d.conditions || [], memo: '', goal: d.goal };
+      job: d.job, pa: Number(d.pa), conditions: d.conditions || [], memo: '', goal: d.goal,
+      bodyFat: num('bodyFat'), smm: num('smm'),
+      targetWeight: d.goal !== 'maintain' ? num('targetWeight') : null, targetWeeks: d.goal !== 'maintain' ? num('targetWeeks') : null,
+      cuisines: d.cuisines || [], budget: num('budget') ? Math.round(num('budget') * 10000) : null };
     store.save('dk_profile', profile);
     S.justFinished = true; S.route = 'me'; render();
   }
@@ -539,8 +636,9 @@
       case 'pickdate': { const i = $('#dateInput'); try { i.showPicker(); } catch (_) { i.focus(); i.click(); } break; }
       case 'setmeal': S.meal = d.m; if (S.route !== 'log') S.route = 'log'; render(); window.scrollTo(0, 0); break;
       case 'startlog': S.meal = d.m; S.justFinished = false; S.date = todayStr(); S.route = 'log'; render(); window.scrollTo(0, 0); break;
-      case 'planadd': addPlan(d.m); S.meal = d.m; S.route = 'log'; render(); window.scrollTo(0, 0); break;
-      case 'plannext': S.planIdx[d.m]++; render(); break;
+      case 'planadd': addPlan(d.m, d.day ? Number(d.day) : undefined); S.meal = d.m; S.route = 'log'; render(); window.scrollTo(0, 0); break;
+      case 'plannext': { const day = d.day ? Number(d.day) : dayOf(S.date), k = day + '-' + d.m; S.planIdx[k] = (S.planIdx[k] || 0) + 1; render(); break; }
+      case 'planday': S.planDay = Number(d.v); render(); break;
       case 'del': if (confirm('이 기록을 지울까요?')) { logs[S.date] = dayEntries(S.date).filter(x => x.id !== d.id); store.save('dk_logs', logs); render(); } break;
       case 'openpicker': openPicker(); break;
       case 'closepicker': closePicker(); break;
@@ -569,6 +667,13 @@
     const W = S.wiz, st = WIZ[W.step];
     if (!skip) for (const f of st.f) if (f.req && !(parseFloat(W.d[f.k]) > 0)) { toast(f.req); const i = $('#w_' + f.k); i && i.focus(); return; }
     if (W.step === 0 && W.d.age && parseFloat(W.d.age) < 19) return toast('이 계산식은 19세 이상 성인 기준이에요');
+    if (!skip && st.f.some(f => f.k === 'bodyFat') && W.d.bodyFat && !(parseFloat(W.d.bodyFat) > 2 && parseFloat(W.d.bodyFat) < 70)) return toast('체지방률은 % 값으로 입력해 주세요 (예: 22.5)');
+    if (st.f.some(f => f.k === 'targetWeight') && W.d.goal !== 'maintain') {
+      const tw = parseFloat(W.d.targetWeight), wk = parseFloat(W.d.targetWeeks), cw = parseFloat(W.d.weight);
+      if (tw > 0 && !(wk > 0)) return toast('목표 기간도 입력해 주세요');
+      if (W.d.goal === 'diet' && tw >= cw) return toast('체중 줄이기인데 목표 체중이 지금보다 높아요');
+      if (W.d.goal === 'muscle' && tw > 0 && tw <= cw) return toast('근육 늘리기인데 목표 체중이 지금보다 낮아요');
+    }
     if (W.step === WIZ.length - 1) return finishWizard();
     W.step++; render();
   }

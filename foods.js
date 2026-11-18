@@ -91,7 +91,45 @@ const FOODS = [
   { id: 'sikhye', name: '식혜', cat: '음료', unit: '1캔', g: 240, kcal: 209, carb: 38.9, sugar: 27.3, protein: 3.7, fat: 4.2, fiber: 0.7, src: 'D320-738000000-0001', origin: '외식(분석함량)' },
   { id: 'sweet_soymilk', name: '두유(가당)', cat: '음료', unit: '1팩', g: 190, kcal: 112, carb: 13.8, sugar: 10.0, protein: 4.8, fat: 4.0, fiber: 1.3, src: '가공식품 중앙값 n=86', origin: '식약처 가공식품DB' },
   { id: 'unsweet_soymilk', name: '두유(무가당)', cat: '음료', unit: '1팩', g: 190, kcal: 70, carb: 4.7, sugar: 0.8, protein: 6.1, fat: 3.3, fiber: 3.4, src: '가공식품 중앙값 n=10', origin: '식약처 가공식품DB' },
-  { id: 'barley_tea', name: '보리차·탄산수', cat: '음료', unit: '1컵', g: 200, kcal: 2, carb: 0.4, sugar: 0.0, protein: 0.0, fat: 0.0, fiber: 0, src: '가공식품 중앙값 n=7', origin: '식약처 가공식품DB' }
+  { id: 'barley_tea', name: '보리차·탄산수', cat: '음료', unit: '1컵', g: 200, kcal: 2, carb: 0.4, sugar: 0.0, protein: 0.0, fat: 0.0, fiber: 0, src: '가공식품 중앙값 n=7', origin: '식약처 가공식품DB' },
+
+  // 추가 음식 (선호 음식 종류별 식단용) — 식약처 음식DB
+  { id: 'salmon_sushi', name: '연어초밥', cat: '밥류', unit: '8개', g: 240, kcal: 497, carb: 47.0, sugar: 8.7, protein: 26.9, fat: 22.5, fiber: 0.0, src: 'D301-042360000-0001', origin: '외식(분석함량)' },
+  { id: 'mixed_sushi', name: '모둠초밥', cat: '밥류', unit: '10개', g: 300, kcal: 480, carb: 80.2, sugar: 4.2, protein: 29.0, fat: 4.8, fiber: 6.0, src: 'D101-042200000-0001', origin: '가정식(분석 함량)' },
+  { id: 'hoedeopbap', name: '회덮밥', cat: '밥류', unit: '1그릇', g: 450, kcal: 616, carb: 93.0, sugar: 9.9, protein: 27.2, fat: 14.9, fiber: 7.2, src: 'D301-051000000-0001', origin: '외식(분석함량)' },
+  { id: 'mulhoe', name: '물회', cat: '면·일품', unit: '1그릇', g: 450, kcal: 342, carb: 35.5, sugar: 12.9, protein: 22.1, fat: 12.2, fiber: 9.9, src: 'D314-630000000-0001', origin: '외식(분석함량)' },
+  { id: 'squid_deopbap', name: '오징어덮밥', cat: '밥류', unit: '1그릇', g: 400, kcal: 540, carb: 87.8, sugar: 2.6, protein: 28.7, fat: 8.0, fiber: 10.4, src: 'D101-010390000-0001', origin: '가정식(분석 함량)' },
+  { id: 'nakji_deopbap', name: '낙지덮밥', cat: '밥류', unit: '1그릇', g: 400, kcal: 600, carb: 96.5, sugar: 8.6, protein: 23.5, fat: 13.4, fiber: 9.2, src: 'D101-010080000-0001', origin: '가정식(분석 함량)' },
+  { id: 'seafood_deopbap', name: '해물덮밥', cat: '밥류', unit: '1그릇', g: 500, kcal: 550, carb: 71.8, sugar: 0.8, protein: 30.1, fat: 16.1, fiber: 8.0, src: 'D301-010550000-0001', origin: '외식(분석함량)' },
+  { id: 'salmon_grill', name: '연어구이', cat: '반찬', unit: '1토막', g: 100, kcal: 234, carb: 0.2, sugar: 0.6, protein: 24.8, fat: 14.9, fiber: 0.0, src: 'D308-388000000-0001', origin: '외식(분석함량)' },
+  { id: 'galchi_grill', name: '갈치구이', cat: '반찬', unit: '1토막', g: 80, kcal: 110, carb: 0.5, sugar: 0.0, protein: 17.2, fat: 4.4, fiber: 5.4, src: 'D108-355030000-0001', origin: '가정식(분석 함량)' },
+  { id: 'samchi_grill', name: '삼치구이', cat: '반찬', unit: '1토막', g: 80, kcal: 142, carb: 1.2, sugar: 0.2, protein: 17.1, fat: 7.7, fiber: 1.1, src: 'D108-383000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'jogi_grill', name: '조기구이', cat: '반찬', unit: '1마리', g: 60, kcal: 106, carb: 0.3, sugar: 0.0, protein: 11.6, fat: 6.5, fiber: 0.2, src: 'D108-399000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'eel_grill', name: '장어구이(소금)', cat: '반찬', unit: '1인분', g: 150, kcal: 446, carb: 17.4, sugar: 0.6, protein: 39.0, fat: 24.3, fiber: 1.5, src: 'D308-396083200-0001', origin: '외식(분석함량)' },
+  { id: 'samgyeop', name: '삼겹살구이', cat: '반찬', unit: '1인분', g: 150, kcal: 700, carb: 0.5, sugar: 0.0, protein: 33.8, fat: 62.5, fiber: 1.1, src: 'D108-382000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'sogalbi', name: '소갈비구이', cat: '반찬', unit: '1인분', g: 150, kcal: 447, carb: 13.5, sugar: 7.9, protein: 21.6, fat: 32.4, fiber: 0.9, src: 'D408-424000000-0001', origin: '외식(재료량 기반 산출함량)' },
+  { id: 'dakgalbi', name: '닭갈비', cat: '반찬', unit: '1인분', g: 250, kcal: 465, carb: 19.8, sugar: 1.9, protein: 35.0, fat: 27.4, fiber: 3.2, src: 'D110-462000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'chicken_skewer', name: '닭꼬치구이', cat: '간식', unit: '2꼬치', g: 120, kcal: 217, carb: 6.7, sugar: 4.6, protein: 38.5, fat: 3.1, fiber: 0.1, src: 'D408-410000000-0001', origin: '외식(재료량 기반 산출함량)' },
+  { id: 'squid_stirfry', name: '오징어볶음', cat: '반찬', unit: '1인분', g: 150, kcal: 192, carb: 11.1, sugar: 2.9, protein: 14.8, fat: 9.8, fiber: 6.0, src: 'D110-488000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'haemultang', name: '해물탕', cat: '국·찌개', unit: '1그릇', g: 400, kcal: 180, carb: 11.1, sugar: 0.5, protein: 26.5, fat: 3.1, fiber: 4.0, src: 'D306-300000000-0002', origin: '외식(분석함량)' },
+  { id: 'gwangeo_maeuntang', name: '광어매운탕', cat: '국·찌개', unit: '1그릇', g: 400, kcal: 280, carb: 6.1, sugar: 1.0, protein: 39.0, fat: 11.1, fiber: 2.8, src: 'D306-280020000-0001', origin: '외식(분석함량)' },
+  { id: 'samgyetang', name: '삼계탕', cat: '국·찌개', unit: '1그릇', g: 700, kcal: 707, carb: 26.9, sugar: 3.1, protein: 74.8, fat: 33.6, fiber: 11.2, src: 'D105-228000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'kongguksu', name: '콩국수', cat: '면·일품', unit: '1그릇', g: 550, kcal: 446, carb: 49.1, sugar: 1.3, protein: 21.4, fat: 18.4, fiber: 10.4, src: 'D103-175000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'shabu', name: '소고기 샤브샤브', cat: '면·일품', unit: '1인분', g: 400, kcal: 172, carb: 7.2, sugar: 6.0, protein: 21.5, fat: 6.5, fiber: 4.8, src: 'D106-287180000-0001', origin: '가정식(분석 함량)' },
+  { id: 'udon', name: '우동', cat: '면·일품', unit: '1그릇', g: 550, kcal: 330, carb: 58.3, sugar: 1.9, protein: 10.5, fat: 6.2, fiber: 15.9, src: 'D303-164400000-0001', origin: '외식(분석함량)' },
+  { id: 'memil_soba', name: '메밀소바', cat: '면·일품', unit: '1그릇', g: 400, kcal: 344, carb: 71.8, sugar: 5.8, protein: 10.0, fat: 1.3, fiber: 2.8, src: 'D403-153000000-0001', origin: '외식(재료량 기반 산출함량)' },
+  { id: 'donkatsu', name: '돈가스', cat: '면·일품', unit: '1인분', g: 250, kcal: 700, carb: 39.7, sugar: 12.5, protein: 34.6, fat: 44.9, fiber: 0.8, src: 'D312-550000000-0002', origin: '외식(분석함량)' },
+  { id: 'hamburg', name: '함박스테이크', cat: '면·일품', unit: '1인분', g: 200, kcal: 348, carb: 14.4, sugar: 0.1, protein: 24.2, fat: 21.5, fiber: 2.6, src: 'D108-404000000-0001', origin: '가정식(분석 함량)' },
+  { id: 'omelet', name: '오믈렛', cat: '반찬', unit: '1개', g: 120, kcal: 94, carb: 1.6, sugar: 0.8, protein: 5.4, fat: 7.0, fiber: 0.2, src: 'D409-457000000-0001', origin: '외식(재료량 기반 산출함량)' },
+  { id: 'chicken_salad', name: '닭가슴살 샐러드', cat: '면·일품', unit: '1그릇', g: 250, kcal: 338, carb: 13.4, sugar: 8.1, protein: 17.9, fat: 23.7, fiber: 7.8, src: 'D114-640080000-0001', origin: '가정식(분석 함량)' },
+  { id: 'bulgogi_deopbap', name: '불고기덮밥', cat: '밥류', unit: '1그릇', g: 400, kcal: 728, carb: 107.8, sugar: 0.3, protein: 26.4, fat: 21.2, fiber: 11.2, src: 'D101-010240000-0001', origin: '가정식(분석 함량)' },
+  { id: 'eel_deopbap', name: '장어덮밥', cat: '밥류', unit: '1그릇', g: 400, kcal: 716, carb: 97.4, sugar: 5.6, protein: 30.1, fat: 23.0, fiber: 10.4, src: 'D301-010440000-0001', origin: '외식(분석함량)' },
+  { id: 'chicken_deopbap', name: '닭고기덮밥', cat: '밥류', unit: '1그릇', g: 400, kcal: 500, carb: 59.3, sugar: 4.3, protein: 45.6, fat: 8.7, fiber: 4.4, src: 'D101-010110000-0001', origin: '가정식(분석 함량)' },
+  { id: 'tuna_salad', name: '참치 샐러드', cat: '반찬', unit: '1접시', g: 150, kcal: 226, carb: 11.3, sugar: 10.4, protein: 16.2, fat: 13.0, fiber: 3.8, src: 'D114-640310000-0001', origin: '가정식(분석 함량)' },
+  { id: 'seafood_spaghetti', name: '해물 스파게티', cat: '면·일품', unit: '1접시', g: 350, kcal: 287, carb: 44.9, sugar: 6.7, protein: 16.8, fat: 4.0, fiber: 3.9, src: 'D403-200000000-0001', origin: '외식(재료량 기반 산출함량)' },
+  { id: 'chicken_sandwich', name: '닭가슴살 샌드위치', cat: '빵·곡류', unit: '1개', g: 200, kcal: 480, carb: 41.9, sugar: 6.2, protein: 24.4, fat: 23.8, fiber: 4.8, src: 'D102-096060000-0001', origin: '가정식(분석 함량)' },
+  { id: 'mushroom_soup', name: '양송이 수프', cat: '국·찌개', unit: '1그릇', g: 200, kcal: 210, carb: 16.1, sugar: 5.0, protein: 4.8, fat: 14.1, fiber: 3.2, src: 'D104-185060000-0001', origin: '가정식(분석 함량)' },
+  { id: 'doenjangguk', name: '감자 된장국', cat: '국·찌개', unit: '1그릇', g: 250, kcal: 55, carb: 8.3, sugar: 0.8, protein: 3.5, fat: 0.8, fiber: 2.2, src: 'D405-261000000-0001', origin: '외식(재료량 기반 산출함량)' },
 ];
 
 /* 당이 많은 음식 → 대체 추천 (id 목록) */
@@ -168,31 +206,92 @@ const GI = {
   milk: 'low', lowfat_milk: 'low', greek_yogurt: 'low', cheese: 'low', unsweet_soymilk: 'low', nuts: 'low',
   boiled_egg: 'low', egg_roll: 'low', mackerel: 'low', chicken_breast: 'low', bulgogi: 'low', jeyuk: 'low',
   spinach: 'low', bean_sprout: 'low', kimchi: 'low', kkakdugi: 'low', cucumber: 'low', carrot: 'low', cherry_tomato: 'low',
-  tofu_braise: 'low', miyeokguk: 'low', doenjang: 'low', americano: 'low', zero_cola: 'low'
+  tofu_braise: 'low', miyeokguk: 'low', doenjang: 'low', americano: 'low', zero_cola: 'low',
+  salmon_grill: 'low', galchi_grill: 'low', samchi_grill: 'low', jogi_grill: 'low', samgyeop: 'low', chicken_skewer: 'low', haemultang: 'low', omelet: 'low', doenjangguk: 'low',
+  udon: 'high', hoedeopbap: 'high', mixed_sushi: 'high', salmon_sushi: 'high', memil_soba: 'mid', seafood_spaghetti: 'mid', kongguksu: 'mid'
 };
 const GI_LABEL = { low: '낮음', mid: '중간', high: '높음' };
 
-/* 끼니별 예시 식단 템플릿 — 첫 번째 항목(주식)의 양을 조절해 목표 열량에 맞춤 */
+/* 1인분 대략 비용(원) — 공공데이터에 가격이 없어 앱에서 정한 추정치예요.
+ * 밥·국·반찬·과일은 집에서 만드는 재료비, 덮밥·초밥·탕·면 같은 일품요리는 외식 1인분 가격 기준(2026년 수도권 대략).
+ * 지역·가게·계절에 따라 크게 달라질 수 있어요. */
+const PRICE = {
+  rice: 400, brown_rice: 500, multigrain_rice: 500, gimbap: 4000, bibimbap: 10000, fried_rice: 8000, curry_rice: 8000,
+  wholewheat_bread: 800, white_bread: 500,
+  doenjang: 1500, kimchi_stew: 2000, miyeokguk: 1200, beef_radish: 2500, sundubu: 1800, seolleongtang: 11000,
+  kimchi: 300, kkakdugi: 300, spinach: 600, bean_sprout: 300, anchovy: 700, bulgogi: 4000, jeyuk: 3000, mackerel: 2500,
+  egg_roll: 800, tofu_braise: 700, potato_braise: 500, lotus_braise: 900, japchae: 1500, chicken_breast: 2000,
+  ramen: 1200, jjajang: 7000, naengmyeon: 12000, tteokbokki: 5000, kalguksu: 9000,
+  chocopie: 500, garaetteok: 1000, honey_tteok: 2000, icecream: 1500, cookie: 800, redbean_bread: 1800,
+  sweet_potato: 1000, potato: 600, nuts: 700, boiled_egg: 400, cherry_tomato: 1200, cucumber: 600, carrot: 400,
+  cheese: 500, greek_yogurt: 1800, sweet_yogurt: 1000, milk: 700, lowfat_milk: 700,
+  apple: 1500, banana: 500, tangerine: 400, strawberry: 2000, grape: 2000, watermelon: 1500, pear: 2500, blueberry: 2000, kiwi: 800, persimmon: 1000,
+  cola: 1800, zero_cola: 1800, orange_juice: 1500, mix_coffee: 200, americano: 3000, latte: 4500, vanilla_latte: 5500, sikhye: 1200,
+  sweet_soymilk: 900, unsweet_soymilk: 900, barley_tea: 300,
+  salmon_sushi: 15000, mixed_sushi: 18000, hoedeopbap: 13000, mulhoe: 15000, squid_deopbap: 9000, nakji_deopbap: 11000,
+  seafood_deopbap: 11000, bulgogi_deopbap: 9000, eel_deopbap: 18000, chicken_deopbap: 9000,
+  salmon_grill: 4500, galchi_grill: 4000, samchi_grill: 2500, jogi_grill: 2500, eel_grill: 15000, samgyeop: 5000, sogalbi: 9000,
+  dakgalbi: 5000, chicken_skewer: 3500, squid_stirfry: 3000, haemultang: 15000, gwangeo_maeuntang: 15000, samgyetang: 17000,
+  kongguksu: 11000, shabu: 15000, udon: 7000, memil_soba: 9000, donkatsu: 10000, hamburg: 11000, omelet: 1000,
+  chicken_salad: 9000, tuna_salad: 2000, seafood_spaghetti: 14000, chicken_sandwich: 6500, mushroom_soup: 2000, doenjangguk: 700
+};
+FOODS.forEach(f => { f.price = PRICE[f.id] || 0; });
+
+/* 선호 음식 종류 */
+const CUISINES = [['korean', '한식'], ['western', '양식'], ['japanese', '일식'], ['stew', '찌개·탕'], ['rice_bowl', '덮밥'], ['seafood', '해산물'], ['raw_fish', '회'], ['grill', '구이']];
+
+/* 끼니별 예시 식단 — 첫 번째 항목(주식)의 양을 조절해 목표 열량에 맞춤. t: 음식 종류 태그 */
 const MEAL_TEMPLATES = {
   breakfast: [
-    ['multigrain_rice', 'miyeokguk', 'egg_roll', 'spinach', 'kimchi'],
-    ['wholewheat_bread', 'boiled_egg', 'greek_yogurt', 'cherry_tomato'],
-    ['brown_rice', 'beef_radish', 'tofu_braise', 'kimchi']
+    { ids: ['multigrain_rice', 'miyeokguk', 'egg_roll', 'spinach', 'kimchi'], t: ['korean', 'stew'] },
+    { ids: ['wholewheat_bread', 'boiled_egg', 'greek_yogurt', 'cherry_tomato'], t: ['western'] },
+    { ids: ['brown_rice', 'beef_radish', 'tofu_braise', 'kimchi'], t: ['korean', 'stew'] },
+    { ids: ['wholewheat_bread', 'omelet', 'tuna_salad', 'lowfat_milk'], t: ['western', 'seafood'] },
+    { ids: ['multigrain_rice', 'doenjangguk', 'jogi_grill', 'spinach', 'kimchi'], t: ['korean', 'stew', 'grill', 'seafood'] },
+    { ids: ['chicken_sandwich', 'unsweet_soymilk'], t: ['western'] },
+    { ids: ['multigrain_rice', 'miyeokguk', 'samchi_grill', 'kimchi'], t: ['korean', 'grill', 'seafood'] }
   ],
   lunch: [
-    ['multigrain_rice', 'doenjang', 'mackerel', 'bean_sprout', 'kimchi'],
-    ['brown_rice', 'beef_radish', 'egg_roll', 'spinach', 'kkakdugi'],
-    ['multigrain_rice', 'seolleongtang', 'kimchi', 'bean_sprout']
+    { ids: ['multigrain_rice', 'doenjang', 'mackerel', 'bean_sprout', 'kimchi'], t: ['korean', 'stew', 'grill', 'seafood'] },
+    { ids: ['brown_rice', 'beef_radish', 'egg_roll', 'spinach', 'kkakdugi'], t: ['korean', 'stew'] },
+    { ids: ['multigrain_rice', 'seolleongtang', 'kimchi', 'bean_sprout'], t: ['korean', 'stew'] },
+    { ids: ['hoedeopbap', 'doenjangguk'], t: ['korean', 'rice_bowl', 'raw_fish', 'seafood'] },
+    { ids: ['squid_deopbap', 'doenjangguk', 'kimchi'], t: ['korean', 'rice_bowl', 'seafood'] },
+    { ids: ['chicken_deopbap', 'doenjangguk', 'kimchi'], t: ['japanese', 'rice_bowl'] },
+    { ids: ['mixed_sushi', 'doenjangguk'], t: ['japanese', 'raw_fish', 'seafood'] },
+    { ids: ['memil_soba', 'chicken_skewer'], t: ['japanese', 'grill'] },
+    { ids: ['wholewheat_bread', 'chicken_salad', 'unsweet_soymilk'], t: ['western'] },
+    { ids: ['seafood_spaghetti', 'tuna_salad'], t: ['western', 'seafood'] },
+    { ids: ['multigrain_rice', 'dakgalbi', 'kimchi'], t: ['korean', 'grill'] },
+    { ids: ['brown_rice', 'galchi_grill', 'doenjangguk', 'spinach', 'kimchi'], t: ['korean', 'grill', 'seafood'] },
+    { ids: ['kongguksu', 'kimchi'], t: ['korean'] },
+    { ids: ['multigrain_rice', 'mulhoe'], t: ['korean', 'raw_fish', 'seafood'] }
   ],
   dinner: [
-    ['brown_rice', 'sundubu', 'spinach', 'bean_sprout', 'kimchi'],
-    ['multigrain_rice', 'kimchi_stew', 'tofu_braise', 'spinach'],
-    ['brown_rice', 'miyeokguk', 'mackerel', 'spinach', 'kimchi']
+    { ids: ['brown_rice', 'sundubu', 'spinach', 'bean_sprout', 'kimchi'], t: ['korean', 'stew'] },
+    { ids: ['multigrain_rice', 'kimchi_stew', 'tofu_braise', 'spinach'], t: ['korean', 'stew'] },
+    { ids: ['brown_rice', 'miyeokguk', 'mackerel', 'spinach', 'kimchi'], t: ['korean', 'grill', 'seafood'] },
+    { ids: ['multigrain_rice', 'salmon_grill', 'doenjangguk', 'spinach'], t: ['japanese', 'western', 'grill', 'seafood'] },
+    { ids: ['multigrain_rice', 'samgyeop', 'bean_sprout', 'kimchi'], t: ['korean', 'grill'] },
+    { ids: ['multigrain_rice', 'sogalbi', 'doenjangguk', 'kimchi'], t: ['korean', 'grill'] },
+    { ids: ['multigrain_rice', 'shabu', 'kimchi'], t: ['japanese', 'stew'] },
+    { ids: ['multigrain_rice', 'haemultang', 'spinach'], t: ['korean', 'stew', 'seafood'] },
+    { ids: ['multigrain_rice', 'gwangeo_maeuntang', 'spinach'], t: ['korean', 'stew', 'raw_fish', 'seafood'] },
+    { ids: ['salmon_sushi', 'doenjangguk'], t: ['japanese', 'raw_fish', 'seafood'] },
+    { ids: ['multigrain_rice', 'squid_stirfry', 'doenjangguk', 'kimchi'], t: ['korean', 'seafood'] },
+    { ids: ['brown_rice', 'hamburg', 'mushroom_soup'], t: ['western', 'grill'] },
+    { ids: ['samgyetang', 'kimchi'], t: ['korean', 'stew'] },
+    { ids: ['eel_deopbap', 'doenjangguk'], t: ['japanese', 'rice_bowl', 'grill', 'seafood'] }
   ],
   snack: [
-    ['nuts', 'cherry_tomato'],
-    ['greek_yogurt', 'strawberry'],
-    ['unsweet_soymilk', 'boiled_egg'],
-    ['boiled_egg', 'cucumber']
+    { ids: ['nuts', 'cherry_tomato'], t: [] },
+    { ids: ['greek_yogurt', 'strawberry'], t: [] },
+    { ids: ['unsweet_soymilk', 'boiled_egg'], t: [] },
+    { ids: ['boiled_egg', 'cucumber'], t: [] },
+    { ids: ['cheese', 'apple'], t: [] },
+    { ids: ['lowfat_milk', 'nuts'], t: [] }
   ]
 };
+
+/* 밖에서 먹을 때 지도 검색어 — 선호 종류별 */
+const MAP_QUERY = { korean: '보리밥', western: '샐러드', japanese: '샤브샤브', stew: '순두부', rice_bowl: '회덮밥', seafood: '생선구이', raw_fish: '물회', grill: '생선구이' };
