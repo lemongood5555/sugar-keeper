@@ -140,6 +140,52 @@
     return out;
   }
 
+  /* ---------- 앱 설치 · 백업 ---------- */
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; if (S.route === 'me') render(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; toast('앱이 설치됐어요'); if (S.route === 'me') render(); });
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {} // 브라우저가 저장 공간을 임의로 지우지 않게 요청
+
+  const BACKUP_KEYS = ['dk_profile', 'dk_logs', 'dk_custom', 'dk_bg'];
+  function exportBackup() {
+    const data = { app: 'dangjikim', version: 1, savedAt: new Date().toISOString() };
+    BACKUP_KEYS.forEach(k => { data[k] = store.load(k, null); });
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const a = document.createElement('a'), d = new Date();
+    a.href = URL.createObjectURL(blob); a.download = `당지킴-백업-${ymd(d)}.json`;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    store.save('dk_lastbackup', ymd(d)); toast('백업 파일을 저장했어요'); if (S.route === 'me') render();
+  }
+  function importBackup(file) {
+    const rd = new FileReader();
+    rd.onload = () => {
+      try {
+        const data = JSON.parse(rd.result);
+        if (data.app !== 'dangjikim' || !data.dk_profile) throw new Error('bad');
+        const n = Object.keys(data.dk_logs || {}).length;
+        if (!confirm(`백업 파일을 불러올까요?\n식사 기록 ${n}일치가 들어 있어요. 지금 이 폰의 기록은 덮어써져요.`)) return;
+        BACKUP_KEYS.forEach(k => { if (data[k] != null) localStorage.setItem(k, JSON.stringify(data[k])); });
+        profile = store.load('dk_profile', null); logs = store.load('dk_logs', {}); customFoods = store.load('dk_custom', []); bg = store.load('dk_bg', {});
+        bgCache = null; weekCache = null; byId = null; S.route = 'today'; render(); toast('기록을 불러왔어요');
+      } catch (e) { toast('당지킴 백업 파일이 아니에요'); }
+    };
+    rd.readAsText(file);
+  }
+  function appCard() {
+    const last = store.load('dk_lastbackup', null), has = Object.keys(logs).length;
+    const days = last ? Math.round((new Date(todayStr()) - new Date(last)) / 864e5) : null;
+    const warn = has >= 3 && (days === null || days > 30);
+    return `<section class="sec"><h2>앱으로 쓰기 · 백업</h2>
+      ${isStandalone() ? '<p class="muted" style="margin:0 0 10px">앱으로 열려 있어요.</p>'
+        : installEvt ? '<button class="btn" data-act="install">홈 화면에 앱 설치</button><p class="muted sm" style="margin:8px 0 12px">앱 아이콘이 생기고 주소창 없이 전체 화면으로 열려요.</p>'
+        : '<p class="muted" style="margin:0 0 12px">크롬 오른쪽 위 ⋮ 메뉴에서 <b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 누르면 앱 아이콘이 생겨요.</p>'}
+      ${warn ? `<div class="note">${days === null ? '아직 백업한 적이 없어요.' : `마지막 백업이 ${days}일 전이에요.`} 기록은 이 폰 안에만 있어서, 폰을 바꾸거나 브라우저 데이터를 지우면 사라져요.</div>` : ''}
+      <div class="stack" style="margin-top:12px"><button class="btn alt" data-act="export">기록 백업 파일 저장</button>
+        <label class="btn alt filebtn">백업 파일에서 불러오기<input type="file" id="backupFile" accept="application/json,.json" hidden /></label></div>
+      <p class="muted sm" style="margin:8px 0 0">${last ? `마지막 백업: ${last}. ` : ''}파일은 카카오톡 나에게 보내기나 구글 드라이브에 두면 폰을 바꿔도 이어서 쓸 수 있어요.</p></section>`;
+  }
+
   /* ---------- 혈당 반응 분석 ----------
    * 식후 2시간 혈당이 적힌 끼니마다, 그 끼니에서 탄수화물 10g 이상인 음식에 혈당값을 나눠 붙여 평균을 냄.
    * 김치·국처럼 함께 나오는 반찬이 순위를 차지하지 않게 탄수화물 20g 이상인 음식만 셈. 인과가 아니라 '함께 먹었을 때'의 경향. */
@@ -530,6 +576,7 @@
   let labelBasis = null;
   async function onLabelPhoto(file) {
     const st = $('#labelStatus');
+    if (navigator.onLine === false) { st.textContent = '인터넷에 연결되어 있지 않아요. 라벨 사진 인식은 인터넷이 있을 때만 돼요. 값을 직접 입력해 주세요.'; return; }
     st.textContent = '글자를 읽는 중이에요. 처음 한 번은 인식 데이터를 받느라 조금 걸려요.';
     try {
       const text = await LABEL.ocr(file, m => { if (m && m.status && m.progress != null) st.textContent = `글자 인식 중… ${Math.round(m.progress * 100)}%`; });
@@ -684,7 +731,7 @@
       </div>
       <section class="sec noprint"><button class="btn" data-act="print">PDF로 저장 · 인쇄</button>
         <p class="muted sm" style="margin:8px 0 0">인쇄 화면에서 프린터를 "PDF로 저장"으로 고르면 파일로 저장돼요.</p>
-        <button class="btn quiet" data-act="nav" data-v="learn">알아두기 보기</button></section>`;
+        <button class="btn quiet" data-act="nav" data-v="learn">알아두기 보기</button><button class="btn quiet" data-act="nav" data-v="evidence">계산 근거 · 출처</button></section>`;
   }
 
   function planNote(T, p) {
@@ -707,14 +754,15 @@
         <div class="kpis"><div><b class="num">${T.kcal}</b><span>하루 열량 (kcal)</span></div><div><b class="num">${T.carb}g</b><span>탄수화물 · 열량의 ${Math.round(T.carb * 4 / T.kcal * 100)}%</span></div>
           <div><b class="num">${T.sugar}g</b><span>당류 상한 (에너지의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${esc(T.protBasis)})</span></div>
           <div><b class="num">${T.fat}g</b><span>지방 (25%)</span></div><div><b class="num">${T.fiber}g</b><span>식이섬유</span></div></div>
-        <p class="muted sm" style="margin:10px 0 0">에너지필요추정량 ${T.eer}kcal 기준이에요. 의사나 영양사가 정해 준 목표가 있다면 그 값을 따르세요.</p>
+        <p class="muted sm" style="margin:10px 0 0">에너지필요추정량 ${T.eer}kcal 기준이에요. 의사나 영양사가 정해 준 목표가 있다면 그 값을 따르세요. <button type="button" class="lnk" data-act="nav" data-v="evidence">계산 근거 보기</button></p>
         ${planNote(T, p)}
         ${p.cuisines && p.cuisines.length || p.budget ? `<p class="muted sm" style="margin:8px 0 0">식단 예시: ${p.cuisines && p.cuisines.length ? esc(p.cuisines.map(c => (CUISINES.find(x => x[0] === c) || [])[1]).join(', ')) + ' 위주' : '골고루'}${p.budget ? ` · 일주일 식비 ${won(p.budget)}` : ''}</p>` : ''}
         ${T.kidney ? '<div class="note">신장질환이 있어 단백질을 0.8g/kg으로 낮췄어요. 처방량이 있다면 그 값을 따르세요.</div>' : ''}
         ${T.protCapped ? '<div class="note">당뇨가 있어 단백질은 체중 1kg당 1.3g을 넘지 않게 잡았어요. 고단백식은 당뇨로 약해진 신장에 부담이 될 수 있어요.</div>' : ''}</section>
       ${S.justFinished ? `<section class="sec"><button class="btn" data-act="startlog" data-m="${autoMeal()}">첫 끼니 기록하기</button></section>` : ''}
       <section class="sec"><h2>영양판정</h2>${groups.map(g => `<h3>${g}</h3>${rows.filter(r => r.grp === g).map(r => `<div class="judge"><div class="a">${r.name}<small>${esc(r.note)}</small></div><div class="b"><b>${esc(r.val)}</b>${r.lv === 'info' ? '' : `<span class="tag ${dot[r.lv]}">${lab[r.lv]}</span>`}</div></div>`).join('')}`).join('')}</section>
-      <section class="sec stack"><button class="btn alt" data-act="wizedit">정보 수정하기</button><button class="btn quiet" data-act="nav" data-v="learn">알아두기 · 식사요법 안내</button></section>`;
+      ${appCard()}
+      <section class="sec stack"><button class="btn alt" data-act="wizedit">정보 수정하기</button><button class="btn quiet" data-act="nav" data-v="help">사용법</button><button class="btn quiet" data-act="nav" data-v="evidence">계산 근거 · 출처</button><button class="btn quiet" data-act="nav" data-v="learn">알아두기 · 식사요법 안내</button></section>`;
   }
 
   function viewLearn() {
@@ -733,6 +781,67 @@
       <section class="sec"><h2>숨은 당 찾기</h2><p>조림·볶음 반찬(멸치볶음, 불고기, 연근조림)에는 물엿·설탕이 들어가 당이 의외로 많아요. 양념을 절반으로 줄이고 양파·무로 단맛을 내 보세요. 믹스커피 1봉에는 각설탕 2개쯤의 당이 있어요.</p></section>
       <section class="sec"><h2>저혈당이 의심될 때</h2><p>식은땀, 떨림, 어지러움이 있으면 혈당부터 재세요. 70mg/dL 미만이면 당 15g(주스 ½컵, 사탕 3~4개)을 먹고 15분 뒤 다시 재요. 이때는 점수보다 안전이 먼저예요.</p></section>
       <p class="fine">영양 정보는 식약처·농촌진흥청 공공 데이터에서 가져왔고 제품과 조리법에 따라 달라질 수 있어요. 이 앱은 진단·처방을 대신하지 않아요. 약 조절이나 식사 계획은 담당 의사·임상영양사와 상의하세요.</p></div>`;
+  }
+
+
+  /* =====================================================
+     사용법 · 계산 근거
+     ===================================================== */
+  function viewHelp() {
+    return `<div class="top"><h1>사용법</h1></div><div class="learn help">
+      <section class="sec" style="padding-top:6px"><h2>처음 시작하기</h2>
+        <p>처음 열면 몇 가지 질문이 나와요. 나이·키·체중만 있으면 시작할 수 있고, 모르는 칸은 "모르겠어요 · 건너뛰기"를 누르세요. 입력이 끝나면 하루 열량, 탄수화물, 당류 목표가 정해져요. 바뀐 점이 있으면 <b>내 정보 → 정보 수정하기</b>에서 고칠 수 있어요.</p></section>
+      <section class="sec"><h2>화면 구성</h2><ol>
+        <li><b>오늘</b> — 오늘 먹은 탄수화물·당류가 목표의 어디까지 왔는지 한눈에 봐요. 아침·점심·저녁·간식 칸도 보여요.</li>
+        <li><b>기록</b> — 끼니를 고르고 음식을 추가해요.</li>
+        <li><b>식단</b> — 일주일 식단 예시와 예상 식비를 봐요. 마음에 들면 "이 끼니 기록"을 누르세요.</li>
+        <li><b>리포트</b> — 최근 30일·90일 평균과 음식별 혈당 반응을 봐요. 진료 때 PDF로 저장해 보여 줄 수 있어요.</li>
+        <li><b>내 정보</b> — 목표 수치, 영양판정, 앱 설치와 백업이 있어요.</li></ol></section>
+      <section class="sec"><h2>식사 기록하는 법</h2><ol>
+        <li><b>기록</b>에서 끼니를 고르고 <b>음식 추가</b>를 눌러요.</li>
+        <li>이름으로 검색하거나 분류(밥류, 국·찌개 등)를 골라요.</li>
+        <li>먹은 양(¼, ½, 1, 1½인분 등)을 고르면 저장돼요. <b>하나 더</b>로 이어서 추가하거나 <b>다음 끼니</b>로 넘어가요.</li>
+        <li>음식 사진을 함께 남길 수 있어요. 사진은 이 폰 안에만 저장돼요.</li></ol>
+        <p class="muted sm">찾는 음식이 없으면 목록 맨 아래 <b>찾는 음식이 없어요 — 직접 추가</b>에서 영양성분표 값을 넣거나, 사진으로 자동 입력(인터넷 필요)할 수 있어요. 인식 결과는 꼭 한번 확인하세요.</p></section>
+      <section class="sec"><h2>자주 먹는 식사 한 번에 기록</h2><p>같은 음식을 같은 양으로 여러 번 먹으면, 그 끼니의 기록 화면에 <b>자주 먹은 식사</b>가 나타나요. 누르면 한 번에 기록돼요. 고르기 귀찮을 때는 <b>이대로 먹었어요</b> 같은 식단 예시도 쓸 수 있어요.</p></section>
+      <section class="sec"><h2>식후 혈당 적기</h2><p>혈당계가 있다면 끼니를 기록한 화면에서 <b>식전</b>과 <b>식후 2시간</b> 혈당을 적어요. 같은 음식을 2번 이상 먹고 식후 혈당을 적으면, 리포트에 내 혈당을 많이 올린 음식과 덜 올린 음식이 정리돼요. 혈당을 많이 올린 음식이 들어간 식단 예시는 뒤로 밀려요.</p></section>
+      <section class="sec"><h2>가족에게 보내고 진료 때 보여 주기</h2><p><b>오늘</b> 화면 아래 <b>가족에게 오늘 기록 보내기</b>를 누르면 오늘 식사 요약을 카카오톡 등으로 보낼 수 있어요. <b>리포트</b>의 <b>PDF로 저장 · 인쇄</b>는 인쇄 화면에서 프린터를 "PDF로 저장"으로 고르면 파일이 돼요.</p></section>
+      <section class="sec"><h2>앱처럼 설치하기 (안드로이드)</h2><p>크롬으로 사이트를 한 번 연 뒤 <b>내 정보 → 홈 화면에 앱 설치</b>를 누르세요. 버튼이 없으면 크롬 오른쪽 위 ⋮ 메뉴에서 <b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 고르면 돼요. 설치하면 인터넷이 없어도 열려요. 라벨 사진 인식만 인터넷이 필요해요.</p></section>
+      <section class="sec"><h2>기록 백업</h2><p>기록은 이 폰 안에만 저장돼요. 앱을 지우거나 폰을 바꾸면 사라질 수 있으니 가끔 <b>내 정보 → 기록 백업 파일 저장</b>을 눌러 파일을 카카오톡 "나에게 보내기"나 드라이브에 보관하세요. 새 폰에서는 같은 화면의 <b>백업 불러오기</b>로 되돌려요.</p></section>
+      <section class="sec"><h2>자주 묻는 질문</h2>
+        <p><b>숫자가 영양성분표와 달라요.</b> 식약처 DB는 대표 조리법의 평균값이에요. 제품이나 집밥은 다를 수 있어서 정확히 알고 싶은 음식은 직접 추가로 라벨 값을 넣으세요.</p>
+        <p><b>목표가 이상해 보여요.</b> 체중·키·활동량이 맞는지 내 정보에서 확인하세요. 의사나 영양사가 정해 준 목표가 있다면 그 값이 먼저예요.</p>
+        <p><b>수정한 내용이 안 보여요.</b> 앱을 완전히 닫았다가 다시 열어 보세요.</p></section>
+      <p class="fine">이 앱은 식사 기록과 교육을 돕는 도구예요. 진단·처방을 대신하지 않아요.</p>
+      <section class="sec"><button class="btn quiet" data-act="nav" data-v="evidence">계산 근거 · 출처 보기</button></section></div>`;
+  }
+
+  function viewEvidence() {
+    const A = (u, t) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`;
+    return `<div class="top"><h1>계산 근거 · 출처</h1></div><div class="learn help">
+      <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0">당지킴이 쓰는 기준 가운데 공식 문서로 확인한 것만 모았어요. 아래 내용은 권고 범위이고, 담당 의사·영양사의 지시가 있으면 그것이 먼저예요.</p></section>
+      <section class="sec"><h2>하루 에너지 (에너지필요추정량)</h2>
+        <p>한국인 영양소 섭취기준은 2005년부터 미국·캐나다 IOM의 추정에너지필요량 식을 사용해 왔고, 나이·성별·체중·키·신체활동 계수로 계산해요.</p>
+        <p class="num">남자 19세 이상: 662 − 9.53×나이 + PA×(15.91×체중 + 539.6×키[m])<br>여자 19세 이상: 354 − 6.91×나이 + PA×(9.36×체중 + 726×키[m])</p>
+        <p class="muted sm">출처: 보건복지부·한국영양학회 한국인 영양소 섭취기준 / ${A('https://koreascience.kr/article/JAKO202108360693676.pdf', '김은경 외, 2020 한국인 에너지필요추정량 설정 및 앞으로의 과제 (2021)')}</p></section>
+      <section class="sec"><h2>에너지적정비율</h2>
+        <p>2025 한국인 영양소 섭취기준(보건복지부, 2025년 12월 31일 개정·배포)의 범위는 탄수화물 50~65%, 단백질 10~20%, 지방 15~30%예요. 2020년 기준(탄수화물 55~65%, 단백질 7~20%)에서 바뀌었어요.</p>
+        <p class="muted sm">출처: 보건복지부 2025 한국인 영양소 섭취기준 개정 보도(2025.12.31)</p></section>
+      <section class="sec"><h2>당류</h2>
+        <p>2025 섭취기준은 총당류를 에너지의 20% 이내, 첨가당을 10% 이내로 제한하고 가당음료는 가능한 줄이라고 권고해요. 당지킴은 혈당 관리를 위해 이보다 엄격한 <b>에너지의 10%</b>를 하루 당류 상한으로 보여 줘요.</p>
+        <p>식품 영양성분표의 당류 기준치는 하루 100g(2,000kcal 기준)이에요.</p>
+        <p class="muted sm">출처: 보건복지부 2025 한국인 영양소 섭취기준 / 식품의약품안전처 영양성분 표시 기준치</p></section>
+      <section class="sec"><h2>단백질</h2>
+        <p>한국 성인의 단백질 권장섭취량은 체중 1kg당 약 0.91g이에요. 운동으로 근육을 늘리거나 유지하는 사람은 국제스포츠영양학회가 하루 1.4~2.0g/kg을 권고해요.</p>
+        <p>당뇨병성 신장질환이 있으면 투석 전 단계에서 0.8g/kg을 권고하고, 1.3g/kg을 넘기지 않게 해요(KDIGO). 그래서 신장질환이 있다고 입력하면 0.8g/kg으로 계산해요.</p>
+        <p class="muted sm">출처: ${A('https://doi.org/10.1186/s12970-017-0177-8', 'Jäger R, et al. ISSN Position Stand: protein and exercise. J Int Soc Sports Nutr 2017')} / KDIGO 당뇨병·만성콩팥병 영양 권고(2012) / 한국인 영양소 섭취기준</p></section>
+      <section class="sec"><h2>식후 혈당</h2>
+        <p>미국당뇨병학회는 대부분의 성인에서 식전 혈당 80~130mg/dL, 식후 최고 혈당 180mg/dL 미만을 목표로 제시해요. 식후 혈당은 식사 시작 1~2시간 뒤에 재요. 당지킴은 식후 2시간 값을 받아 180 이상이면 높음으로 표시해요.</p>
+        <p class="muted sm">목표는 사람마다 다르게 정해질 수 있어요. 출처: ${A('https://pmc.ncbi.nlm.nih.gov/articles/PMC10725808/table/T6.3', 'ADA Standards of Care in Diabetes, Glycemic Targets (Diabetes Care)')}</p></section>
+      <section class="sec"><h2>영양 데이터</h2>
+        <p>음식의 열량·탄수화물·당류·단백질·지방은 식품의약품안전처 전국통합식품영양성분정보(음식·원재료) 공공데이터에서 가져왔어요. 조리법과 제품에 따라 실제와 다를 수 있어요.</p></section>
+      <p class="fine">이 앱은 식사 기록과 교육을 돕는 도구예요. 진단·처방을 대신하지 않으며, 약이나 식사 계획은 담당 의사·임상영양사와 상의하세요.</p>
+      <section class="sec"><button class="btn quiet" data-act="nav" data-v="help">사용법 보기</button></section></div>`;
   }
 
   /* =====================================================
@@ -817,7 +926,7 @@
     if (S.route === 'wizard') { if (!S.wiz.d.sex) startWizardInit(); view.innerHTML = viewWizard(); nav.classList.add('off'); window.scrollTo(0, 0); return; }
     nav.classList.remove('off');
     nav.innerHTML = `<div class="in">${NAV.map(([k, n]) => `<button class="${S.route === k ? 'on' : ''}" data-act="nav" data-v="${k}" aria-label="${n}">${ICON[k === 'today' ? 'today' : k]}${n}</button>`).join('')}</div>`;
-    const fn = { today: viewToday, log: viewLog, plan: viewPlan, me: viewMe, learn: viewLearn, report: viewReport }[S.route] || viewToday;
+    const fn = { today: viewToday, log: viewLog, plan: viewPlan, me: viewMe, learn: viewLearn, report: viewReport, help: viewHelp, evidence: viewEvidence }[S.route] || viewToday;
     view.innerHTML = fn();
   }
   function startWizardInit() { S.wiz.d = Object.assign({}, DEF, S.wiz.d); }
@@ -860,6 +969,8 @@
       case 'share': shareDay(); break;
       case 'repdays': S.repDays = Number(d.v); render(); break;
       case 'print': window.print(); break;
+      case 'export': exportBackup(); break;
+      case 'install': if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; render(); }); } break;
     }
   });
   function viewWizardKeep() { const sc = window.scrollY; render(); window.scrollTo(0, sc); }
@@ -895,6 +1006,7 @@
     else if (t.id === 'photoBefore' || t.id === 'photoAfter') {
       const f = t.files[0]; if (!f) return;
       readPhoto(f, data => { if (t.id === 'photoBefore') S.picker.pb = data; else S.picker.pa = data; const sc = $('#overlay').scrollTop; renderPicker(); $('#overlay').scrollTop = sc; const dd = $('details.fold'); if (dd) dd.open = true; });
+    } else if (t.id === 'backupFile') { const f = t.files[0]; if (f) importBackup(f); t.value = '';
     } else if (t.id === 'labelPhoto') { const f = t.files[0]; if (f) onLabelPhoto(f); t.value = ''; }
   });
 

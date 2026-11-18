@@ -1,0 +1,17 @@
+{
+  "name": "당지킴 · 당뇨 식단 기록",
+  "short_name": "당지킴",
+  "description": "식약처 영양성분 DB로 탄수화물·당류를 계산하고 식후 혈당을 기록해요.",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F6F3",
+  "theme_color": "#2E7D6B",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -300,3 +300,8 @@ pre.raw { white-space: pre-wrap; font-size: 0.78rem; background: var(--white); p
   .report { font-size: 11pt; }
   .fine { padding: 10px 0; }
 }
+.filebtn { display: flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
+
+.lnk{background:none;border:0;padding:0;font:inherit;color:#2E7D6B;text-decoration:underline;cursor:pointer}
+.help a{color:#2E7D6B;word-break:break-all}
+.help .num{line-height:1.7}
