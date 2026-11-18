@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>당지킴 · 당뇨 식단 기록과 영양교육</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="logo">🍚</span> 당지킴</div>
+    <div class="who" id="whoLabel"></div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="dash" class="active">오늘</button>
+    <button data-tab="log">식단 기록</button>
+    <button data-tab="profile">영양판정</button>
+    <button data-tab="plan">식단 가이드</button>
+    <button data-tab="edu">영양교육</button>
+  </nav>
+
+  <main>
+    <!-- 오늘 (대시보드) -->
+    <section id="dash" class="tab active">
+      <div class="date-bar">
+        <button class="ghost" data-shift="-1">‹</button>
+        <input type="date" id="dashDate" />
+        <button class="ghost" data-shift="1">›</button>
+      </div>
+      <div id="dashBody"></div>
+    </section>
+
+    <!-- 식단 기록 -->
+    <section id="log" class="tab">
+      <div class="date-bar">
+        <button class="ghost" data-shift="-1">‹</button>
+        <input type="date" id="logDate" />
+        <button class="ghost" data-shift="1">›</button>
+      </div>
+
+      <div class="card">
+        <h2>음식 추가</h2>
+        <div class="seg" id="mealSeg">
+          <button data-meal="breakfast" class="on">아침</button>
+          <button data-meal="lunch">점심</button>
+          <button data-meal="dinner">저녁</button>
+          <button data-meal="snack">간식·과일</button>
+        </div>
+
+        <label class="lbl">음식 검색 (표준레시피 1인분 기준)</label>
+        <input type="search" id="foodSearch" placeholder="예: 잡곡밥, 된장찌개, 사과, 믹스커피" autocomplete="off" />
+        <div class="chips" id="catChips"></div>
+        <div class="results" id="foodResults"></div>
+
+        <div id="pickPanel" class="pick hidden">
+          <div class="pick-head">
+            <strong id="pickName"></strong>
+            <span class="muted" id="pickUnit"></span>
+          </div>
+
+          <label class="lbl">식사 사진으로 섭취량 확인</label>
+          <div class="photo-row">
+            <label class="photo-box">
+              <input type="file" accept="image/*" capture="environment" id="photoBefore" hidden />
+              <img id="imgBefore" alt="" /><span>식사 전</span>
+            </label>
+            <label class="photo-box">
+              <input type="file" accept="image/*" capture="environment" id="photoAfter" hidden />
+              <img id="imgAfter" alt="" /><span>식사 후</span>
+            </label>
+          </div>
+          <p class="hint">식사 전·후 사진을 나란히 보고 실제로 드신 양을 골라 주세요.</p>
+
+          <label class="lbl">섭취량 (1인분 대비)</label>
+          <div class="seg small" id="ratioSeg">
+            <button data-r="0.25">¼</button>
+            <button data-r="0.5">½</button>
+            <button data-r="0.75">¾</button>
+            <button data-r="1" class="on">1</button>
+            <button data-r="1.5">1½</button>
+            <button data-r="2">2</button>
+          </div>
+          <div class="preview" id="pickPreview"></div>
+          <div class="row">
+            <button class="ghost" id="pickCancel">취소</button>
+            <button class="primary" id="pickAdd">기록하기</button>
+          </div>
+        </div>
+
+        <details class="custom">
+          <summary>목록에 없는 음식 직접 입력 · 라벨 사진으로 채우기</summary>
+          <label class="label-btn">
+            📷 영양성분표 사진으로 자동 입력
+            <input type="file" accept="image/*" id="labelPhoto" hidden />
+          </label>
+          <div id="labelStatus" class="hint"></div>
+          <div id="labelBasis" class="warnbox hidden"></div>
+          <div class="grid2">
+            <label>음식 이름<input id="cName" placeholder="음식 이름" /></label>
+            <label>1인분 단위<input id="cUnit" placeholder="1인분 단위 (예: 1개)" /></label>
+            <label>열량 (kcal)<input id="cKcal" type="number" inputmode="decimal" placeholder="열량 kcal" /></label>
+            <label>당류 (g)<input id="cSugar" type="number" inputmode="decimal" placeholder="당류 g" /></label>
+            <label>탄수화물 (g)<input id="cCarb" type="number" inputmode="decimal" placeholder="탄수화물 g" /></label>
+            <label>단백질 (g)<input id="cProt" type="number" inputmode="decimal" placeholder="단백질 g" /></label>
+            <label>지방 (g)<input id="cFat" type="number" inputmode="decimal" placeholder="지방 g" /></label>
+            <label>식이섬유 (g)<input id="cFiber" type="number" inputmode="decimal" placeholder="식이섬유 g" /></label>
+          </div>
+          <div id="eatRow" class="hidden">
+            <label class="lbl">내가 먹는 양 <span class="muted" id="eatUnit"></span> — 위 값이 이 양으로 환산돼요</label>
+            <input id="cEat" type="number" inputmode="decimal" />
+          </div>
+          <details id="rawBox" class="hidden"><summary class="muted">인식된 글자 보기 (값이 이상할 때 확인)</summary><pre id="rawText"></pre></details>
+          <p class="hint">포장식품은 영양성분표의 1회 제공량 값을 입력하세요. 저장하면 검색 목록에 추가돼요.</p>
+          <button class="primary" id="cSave">내 음식으로 저장</button>
+        </details>
+      </div>
+
+      <div id="logList"></div>
+    </section>
+
+    <!-- 영양판정 -->
+    <section id="profile" class="tab">
+      <form id="profileForm" class="card">
+        <h2>기본 정보</h2>
+        <div class="grid2">
+          <label>이름<input name="name" placeholder="예: 아버지" /></label>
+          <label>성별
+            <select name="sex"><option value="M">남</option><option value="F">여</option></select>
+          </label>
+          <label>나이<input name="age" type="number" min="19" max="100" required /></label>
+          <label>키 (cm)<input name="height" type="number" step="0.1" required /></label>
+          <label>체중 (kg)<input name="weight" type="number" step="0.1" required /></label>
+          <label>허리둘레 (cm)<input name="waist" type="number" step="0.1" /></label>
+        </div>
+
+        <h2>생화학적 수치 <span class="muted">(아는 것만)</span></h2>
+        <div class="grid2">
+          <label>공복혈당<input name="fbs" type="number" placeholder="mg/dL" /></label>
+          <label>식후 2시간 혈당<input name="ppg" type="number" placeholder="mg/dL" /></label>
+          <label>당화혈색소<input name="hba1c" type="number" step="0.1" placeholder="%" /></label>
+          <label>총콜레스테롤<input name="tc" type="number" placeholder="mg/dL" /></label>
+          <label>중성지방<input name="tg" type="number" placeholder="mg/dL" /></label>
+          <label>LDL<input name="ldl" type="number" placeholder="mg/dL" /></label>
+          <label>HDL<input name="hdl" type="number" placeholder="mg/dL" /></label>
+          <label>혈압 (수축/이완)
+            <span class="bp"><input name="sbp" type="number" placeholder="130" /> / <input name="dbp" type="number" placeholder="80" /></span>
+          </label>
+        </div>
+
+        <h2>직업 · 활동량</h2>
+        <label>직업 유형
+          <select name="job">
+            <option value="office">사무직 · 운전 등 앉아서 일함</option>
+            <option value="service">서비스·판매 · 서서 일함</option>
+            <option value="labor">현장·육체노동</option>
+            <option value="heavy">고강도 육체노동</option>
+            <option value="retired">은퇴 · 무직</option>
+          </select>
+        </label>
+        <label>신체활동 수준
+          <select name="pa">
+            <option value="1">비활동적 (거의 앉아서 생활)</option>
+            <option value="2">저활동적 (가벼운 걷기·집안일)</option>
+            <option value="3">활동적 (주 3~5회 운동 또는 서서 일함)</option>
+            <option value="4">매우 활동적 (매일 고강도 운동·육체노동)</option>
+          </select>
+        </label>
+
+        <h2>건강 상태</h2>
+        <div class="checks">
+          <label><input type="checkbox" name="conditions" value="diabetes" /> 당뇨병</label>
+          <label><input type="checkbox" name="conditions" value="htn" /> 고혈압</label>
+          <label><input type="checkbox" name="conditions" value="dyslipid" /> 이상지질혈증</label>
+          <label><input type="checkbox" name="conditions" value="kidney" /> 신장질환</label>
+        </div>
+        <label>복용 약 · 기타 메모<input name="memo" placeholder="예: 메트포르민 복용" /></label>
+
+        <h2>목표</h2>
+        <div class="seg" id="goalSeg">
+          <button type="button" data-goal="diet">다이어트</button>
+          <button type="button" data-goal="maintain" class="on">체중 유지</button>
+          <button type="button" data-goal="muscle">근육 증가</button>
+        </div>
+        <label>당류 기준
+          <select name="sugarStd">
+            <option value="strict">엄격 · 총에너지의 10% (당뇨 권장)</option>
+            <option value="general">일반 · 총에너지의 20% (KDRI 상한)</option>
+          </select>
+        </label>
+
+        <button class="primary wide" type="submit">저장하고 판정하기</button>
+      </form>
+      <div id="assessOut"></div>
+    </section>
+
+    <!-- 식단 가이드 -->
+    <section id="plan" class="tab">
+      <div id="planBody"></div>
+    </section>
+
+    <!-- 영양교육 -->
+    <section id="edu" class="tab">
+      <div class="card edu">
+        <h2>당뇨 식사요법 핵심 5가지</h2>
+        <ol>
+          <li><b>규칙적으로, 골고루</b> — 세 끼를 비슷한 시간에, 비슷한 양으로 드세요. 끼니를 거르면 다음 식사 후 혈당이 크게 오릅니다.</li>
+          <li><b>밥은 잡곡으로, 양은 일정하게</b> — 현미·보리 등 통곡물은 식이섬유가 많아 혈당 상승이 완만합니다.</li>
+          <li><b>채소 → 단백질 → 밥 순서로</b> — 채소와 반찬을 먼저 먹으면 식후 혈당 상승을 줄이는 데 도움이 됩니다.</li>
+          <li><b>단 음료는 가장 먼저 줄이기</b> — 액체 당은 흡수가 빨라 혈당을 급격히 올립니다. 물·보리차·무가당 음료로 바꾸세요.</li>
+          <li><b>과일은 1회 1교환단위</b> — 사과 ⅓개, 귤 1개, 딸기 7알 정도가 1교환(50kcal)입니다. 주스 대신 생과일로.</li>
+        </ol>
+      </div>
+      <div class="card edu">
+        <h2>당류 0g인데 왜 혈당이 오를까?</h2>
+        <p>영양성분표의 <b>당류</b>는 설탕·과당·유당 같은 단순당만 셉니다. 밥·면·빵·떡의 <b>전분</b>은 탄수화물로 따로 표시되고, 소화되면 모두 포도당이 되어 혈당을 올려요. 그래서 쌀밥은 당류 0g이어도 한 공기에 탄수화물이 약 70~80g입니다.</p>
+        <p>당뇨 식사에서는 당류만 보지 말고 <b>하루 총 탄수화물과 끼니별 분배</b>를 함께 관리하세요. 이 사이트의 점수도 당류와 탄수화물을 같이 평가합니다.</p>
+        <p>탄수화물이 많은 음식은 <b>잡곡·현미로 바꾸고, 양을 일정하게</b>, 채소·단백질 반찬을 먼저 드세요. 같은 양이라도 식후 혈당 상승이 완만해집니다.</p>
+      </div>
+      <div class="card edu">
+        <h2>혈당지수(GI)란?</h2>
+        <p>같은 탄수화물이라도 식후 혈당을 올리는 속도가 다릅니다. 흰밥·떡·감자·식빵은 <b>높음</b>, 현미·잡곡밥·고구마는 <b>중간</b>, 채소·콩·대부분의 생과일·우유는 <b>낮음</b>에 가까워요. 식이섬유와 단백질·지방을 함께 먹으면 더 완만해집니다.</p>
+        <p class="hint">GI 표시는 문헌의 대표값을 구분한 참고용이며, 품종·조리법·먹는 양에 따라 달라집니다. 혈당 관리는 GI보다 <b>총 탄수화물 양</b>이 우선입니다.</p>
+      </div>
+      <div class="card edu">
+        <h2>숨은 당 찾기</h2>
+        <p>조림·볶음 반찬(멸치볶음, 불고기, 연근조림)에는 물엿·설탕이 들어가 의외로 당이 많습니다. 양념은 절반으로, 단맛은 양파·무 등 채소로 내 보세요.</p>
+        <p>믹스커피 1봉에는 각설탕 약 2개 분량의 당이 있습니다. 하루 3잔이면 그것만으로 당뇨 엄격 기준의 상당 부분을 차지합니다.</p>
+      </div>
+      <div class="card edu">
+        <h2>저혈당 주의</h2>
+        <p>식은땀, 떨림, 어지러움이 있으면 혈당을 확인하고 70mg/dL 미만이면 당 15g(주스 ½컵, 사탕 3~4개)을 먹고 15분 뒤 다시 재세요. 이때는 당류 점수보다 안전이 우선입니다.</p>
+      </div>
+      <p class="disclaimer">이 사이트의 영양 정보는 표준레시피 기반 추정치이며 의학적 진단·처방을 대신하지 않습니다. 약 조절이나 식사 계획은 담당 의사·임상영양사와 상의하세요.</p>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="js/foods.js"></script>
+  <script src="js/nutrition.js"></script>
+  <script src="js/label.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
