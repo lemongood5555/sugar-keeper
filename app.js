@@ -413,6 +413,7 @@
     return `<div class="top"><h1>식단 예시</h1></div>
       <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0">하루 ${T.kcal}kcal · 아침 25% · 점심 30% · 저녁 30% · 간식 15%로 나눴어요. 먹은 끼니는 <b>이 끼니 기록</b>으로 한 번에 남길 수 있어요.</p>${blocks}</section>
       <section class="sec"><h2>하루 합계</h2>${meter('열량', tot.kcal, T.kcal, 'kcal')}${meter('탄수화물', tot.carb, T.carb, 'g')}${meter('당류', tot.sugar, T.sugar, 'g')}${meter('단백질', tot.protein, T.protein, 'g', 'min')}</section>
+      <section class="sec"><h2>당류 기준</h2><p class="muted" style="margin:0 0 6px">한국인 영양소 섭취기준은 총당류 20% 이내, 첨가당 10% 이내이고 가당 음료는 가능한 줄이도록 해요. 20%는 넘으면 안 되는 한계선이라, 이 앱은 모두에게 에너지의 10%를 상한으로 잡아요. 2,000kcal라면 50g이에요.</p></section>
       <section class="sec"><h2>양 가늠하기</h2><p class="muted" style="margin:0">밥 1공기(210g)는 일반 밥공기에 평평하게 담은 양이에요. 고기·생선 1인분은 손바닥 크기, 견과류 한 줌은 약 25g이에요.</p></section>`;
   }
 
@@ -425,7 +426,7 @@
     return `<div class="top"><h1>${S.justFinished ? '목표가 정해졌어요' : '내 정보'}</h1></div>
       <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0 0 12px">${esc(p.name || '')} · ${p.sex === 'M' ? '남' : '여'} ${p.age}세 · ${p.height}cm · ${p.weight}kg · 목표 ${goalTxt}</p>
         <div class="kpis"><div><b class="num">${T.kcal}</b><span>하루 열량 (kcal)</span></div><div><b class="num">${T.carb}g</b><span>탄수화물 · 열량의 ${Math.round(T.carb * 4 / T.kcal * 100)}%</span></div>
-          <div><b class="num">${T.sugar}g</b><span>당류 상한 (${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${T.protPerKg}g × ${r1(T.refWt)}kg)</span></div>
+          <div><b class="num">${T.sugar}g</b><span>당류 상한 (에너지의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${T.protPerKg}g × ${r1(T.refWt)}kg)</span></div>
           <div><b class="num">${T.fat}g</b><span>지방 (25%)</span></div><div><b class="num">${T.fiber}g</b><span>식이섬유</span></div></div>
         <p class="muted sm" style="margin:10px 0 0">에너지필요추정량 ${T.eer}kcal 기준이에요. 의사나 영양사가 정해 준 목표가 있다면 그 값을 따르세요.</p>
         ${T.kidney ? '<div class="note">신장질환이 있어 단백질을 0.8g/kg으로 낮췄어요. 처방량이 있다면 그 값을 따르세요.</div>' : ''}</section>
@@ -508,7 +509,7 @@
     const d = S.wiz.d, num = k => { const v = parseFloat(d[k]); return isNaN(v) ? null : v; };
     profile = { name: (d.name || '').trim(), sex: d.sex, age: num('age'), height: num('height'), weight: num('weight'), waist: num('waist'),
       fbs: num('fbs'), ppg: num('ppg'), hba1c: num('hba1c'), tc: num('tc'), tg: num('tg'), ldl: num('ldl'), hdl: num('hdl'), sbp: num('sbp'), dbp: num('dbp'),
-      job: d.job, pa: Number(d.pa), conditions: d.conditions || [], memo: '', goal: d.goal, sugarStd: (d.conditions || []).includes('diabetes') ? 'strict' : 'general' };
+      job: d.job, pa: Number(d.pa), conditions: d.conditions || [], memo: '', goal: d.goal };
     store.save('dk_profile', profile);
     S.justFinished = true; S.route = 'me'; render();
   }

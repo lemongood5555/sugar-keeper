@@ -1,6 +1,6 @@
 /* 영양판정 및 목표 설정 로직
  * - 에너지필요추정량(EER): 2020 한국인 영양소 섭취기준 성인(19세 이상) 공식
- * - 당류 기준: 2020 KDRI 총당류 에너지의 10~20% 이내 (당뇨는 10% 엄격 기준 기본)
+ * - 당류 기준: KDRI 총당류 20% 이내·첨가당 10% 이내 → 앱은 모든 사용자에게 에너지의 10%를 상한으로 적용
  * - 임상 기준: 대한당뇨병학회 진료지침, 대한비만학회(BMI 23/25, 허리둘레 90/85cm)
  */
 const PA_COEF = {
@@ -52,8 +52,8 @@ const NUTRI = {
     const fat = Math.round((kcal * 0.25) / 9);
     const carb = Math.round((kcal - protein * 4 - fat * 9) / 4);
 
-    const strict = p.sugarStd !== 'general';
-    const sugarPct = strict ? 0.10 : 0.20;
+    // 모든 사용자 10%: KDRI 총당류 상한(20%)은 '넘지 말 것'이지 목표가 아니며, 첨가당 상한 10%를 고려해 보수적으로 적용
+    const sugarPct = 0.10;
     const sugar = Math.round((kcal * sugarPct) / 4);
 
     const fiber = p.sex === 'M' ? (p.age >= 65 ? 25 : 30) : 20;
