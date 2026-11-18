@@ -62,18 +62,17 @@ const NUTRI = {
     if (p.goal === 'diet') kcal = Math.max(kcal, p.sex === 'M' ? 1500 : 1200);
     kcal = Math.round(kcal / 50) * 50;
 
-    // 단백질: KDRI 권장 기준(비만이면 표준체중). 체지방률이 있으면 제지방량 기준으로 올려 잡되 체중당 2.0g을 넘지 않게
+    // 단백질(체중 기준): 유지 0.91(KDRI), 감량 1.2, 근육 증가 1.6 g/kg(ISSN 1.4~2.0 범위의 중간). 비만이면 표준체중 기준
+    // 당뇨: 1.3 g/kg 이하(KDIGO·당뇨병성 신증 진행 우려), 신장질환: 0.8 g/kg(대한당뇨병학회)
     const refWt = bmi >= 25 ? this.ibw(p) : p.weight;
-    let protPerKg = { diet: 1.2, maintain: 0.91, muscle: 1.4 }[p.goal] || 0.91;
+    let protPerKg = { diet: 1.2, maintain: 0.91, muscle: 1.6 }[p.goal] || 0.91;
     const kidney = this.hasCond(p, 'kidney');
+    const dm = this.hasCond(p, 'diabetes');
+    const protCapped = !kidney && dm && protPerKg > 1.3;
+    if (protCapped) protPerKg = 1.3;
     if (kidney) protPerKg = 0.8;
-    let protein = protPerKg * refWt, protBasis = `${protPerKg}g × ${Math.round(refWt * 10) / 10}kg`;
     const lbm = this.lbm(p);
-    if (!kidney && lbm && p.goal !== 'maintain') {
-      const perLbm = p.goal === 'muscle' ? 2.2 : 2.0;
-      const byLbm = Math.min(perLbm * lbm, 2.0 * p.weight);
-      if (byLbm > protein) { protein = byLbm; protBasis = `${perLbm}g × 제지방 ${Math.round(lbm * 10) / 10}kg`; }
-    }
+    let protein = protPerKg * refWt, protBasis = `${protPerKg}g × ${Math.round(refWt * 10) / 10}kg`;
     protein = Math.round(protein);
 
     const fat = Math.round((kcal * 0.25) / 9);
@@ -88,7 +87,7 @@ const NUTRI = {
     const meals = {};
     for (const m in MEAL_SPLIT) meals[m] = Math.round(kcal * MEAL_SPLIT[m]);
 
-    return { eer: Math.round(eer), kcal, protein, protPerKg, protBasis, refWt, lbm, plan, fat, carb, sugar, sugarPct, fiber, meals, kidney };
+    return { eer: Math.round(eer), kcal, protein, protPerKg, protBasis, protCapped, refWt, lbm, plan, fat, carb, sugar, sugarPct, fiber, meals, kidney };
   },
 
   /* 영양판정 (ABCD 중 A·B·C 일부) */

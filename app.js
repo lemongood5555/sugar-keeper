@@ -514,7 +514,8 @@
         <p class="muted sm" style="margin:10px 0 0">에너지필요추정량 ${T.eer}kcal 기준이에요. 의사나 영양사가 정해 준 목표가 있다면 그 값을 따르세요.</p>
         ${planNote(T, p)}
         ${p.cuisines && p.cuisines.length || p.budget ? `<p class="muted sm" style="margin:8px 0 0">식단 예시: ${p.cuisines && p.cuisines.length ? esc(p.cuisines.map(c => (CUISINES.find(x => x[0] === c) || [])[1]).join(', ')) + ' 위주' : '골고루'}${p.budget ? ` · 일주일 식비 ${won(p.budget)}` : ''}</p>` : ''}
-        ${T.kidney ? '<div class="note">신장질환이 있어 단백질을 0.8g/kg으로 낮췄어요. 처방량이 있다면 그 값을 따르세요.</div>' : ''}</section>
+        ${T.kidney ? '<div class="note">신장질환이 있어 단백질을 0.8g/kg으로 낮췄어요. 처방량이 있다면 그 값을 따르세요.</div>' : ''}
+        ${T.protCapped ? '<div class="note">당뇨가 있어 단백질은 체중 1kg당 1.3g을 넘지 않게 잡았어요. 고단백식은 당뇨로 약해진 신장에 부담이 될 수 있어요.</div>' : ''}</section>
       ${S.justFinished ? `<section class="sec"><button class="btn" data-act="startlog" data-m="${autoMeal()}">첫 끼니 기록하기</button></section>` : ''}
       <section class="sec"><h2>영양판정</h2>${groups.map(g => `<h3>${g}</h3>${rows.filter(r => r.grp === g).map(r => `<div class="judge"><div class="a">${r.name}<small>${esc(r.note)}</small></div><div class="b"><b>${esc(r.val)}</b>${r.lv === 'info' ? '' : `<span class="tag ${dot[r.lv]}">${lab[r.lv]}</span>`}</div></div>`).join('')}`).join('')}</section>
       <section class="sec"><button class="btn alt" data-act="wizedit">정보 수정하기</button></section>`;
@@ -550,7 +551,7 @@
       { k: 'height', type: 'num', label: '키', unit: 'cm', step: '0.1', req: '키를 입력해 주세요' },
       { k: 'weight', type: 'num', label: '체중', unit: 'kg', step: '0.1', req: '체중을 입력해 주세요' },
       { k: 'waist', type: 'num', label: '허리둘레 (선택)', unit: 'cm', step: '0.1' }] },
-    { t: '인바디 결과가 있나요?', s: '체지방률을 알면 BMI로는 안 보이는 "마른 비만"이나 근육형 체형을 구분하고, 단백질을 제지방량 기준으로 잡아요.', skip: true, f: [
+    { t: '인바디 결과가 있나요?', s: '체지방률을 알면 BMI로는 안 보이는 "마른 비만"이나 근육형 체형을 구분할 수 있어요.', skip: true, f: [
       { k: 'bodyFat', type: 'num', label: '체지방률', unit: '%', step: '0.1' },
       { k: 'smm', type: 'num', label: '골격근량', unit: 'kg', step: '0.1' }] },
     { t: '최근 혈당 검사 결과가 있나요?', s: '검진표에 있는 것만 적어도 돼요. 없으면 건너뛰세요.', skip: true, f: [
