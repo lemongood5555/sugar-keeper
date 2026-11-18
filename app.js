@@ -23,6 +23,7 @@
   let profile = store.load('dk_profile', null);
   let logs = store.load('dk_logs', {});
   let customFoods = store.load('dk_custom', []);
+  let bg = store.load('dk_bg', {}); // { 날짜: { 끼니: { pre, post } } } 혈당 mg/dL
 
   const pad = n => String(n).padStart(2, '0');
   const ymd = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -37,7 +38,8 @@
     picker: null,
     justFinished: false,
     planIdx: {},
-    planDay: (new Date().getDay() + 6) % 7
+    planDay: (new Date().getDay() + 6) % 7,
+    repDays: 30
   };
 
   /* ---------- 영양 계산 ---------- */
@@ -77,9 +79,10 @@
     log: '<svg viewBox="0 0 24 24"><path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M9 7c0-1.5 1.5-1.5 1.5-3M14 7c0-1.5 1.5-1.5 1.5-3"/></svg>',
     plan: '<svg viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>',
     me: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-4 3.6-6 7-6s6.200 2 7 6"/></svg>',
+    report: '<svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M7 16v-5M12 16V6M17 16v-8"/></svg>',
     learn: '<svg viewBox="0 0 24 24"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M8 20a3 3 0 0 1-3-3"/><path d="M9 9h5"/></svg>'
   };
-  const NAV = [['today', '오늘'], ['log', '기록'], ['plan', '식단'], ['me', '내 정보'], ['learn', '알아두기']];
+  const NAV = [['today', '오늘'], ['log', '기록'], ['plan', '식단'], ['report', '리포트'], ['me', '내 정보']];
 
   /* ---------- 공통 조각 ---------- */
   function dateBar(title) {
@@ -137,6 +140,86 @@
     return out;
   }
 
+  /* ---------- 혈당 반응 분석 ----------
+   * 식후 2시간 혈당이 적힌 끼니마다, 그 끼니에서 탄수화물 10g 이상인 음식에 혈당값을 나눠 붙여 평균을 냄.
+   * 김치·국처럼 함께 나오는 반찬이 순위를 차지하지 않게 탄수화물 20g 이상인 음식만 셈. 인과가 아니라 '함께 먹었을 때'의 경향. */
+  const BG_HIGH = 180;
+  const daysBack = n => { const out = []; const d = new Date(todayStr() + 'T00:00:00'); for (let i = 0; i < n; i++) { out.push(ymd(d)); d.setDate(d.getDate() - 1); } return out; };
+  let bgCache = null;
+  function bgStats(n = 90) {
+    const key = n + JSON.stringify(bg).length + ':' + JSON.stringify(logs).length + ':' + todayStr();
+    if (bgCache && bgCache.key === key) return bgCache.v;
+    const T = getT(), foods = {}, meals = [], fasting = [];
+    daysBack(n).forEach(ds => {
+      const day = bg[ds] || {};
+      if (day.breakfast && day.breakfast.pre) fasting.push(day.breakfast.pre);
+      MEALS.forEach(m => {
+        const v = day[m]; if (!v || !v.post) return;
+        const es = dayEntries(ds).filter(e => e.meal === m); if (!es.length) return;
+        const c = sumNut(es).carb;
+        meals.push({ ds, m, post: v.post, pre: v.pre || null, carb: c, goal: T.carb * MEAL_SPLIT[m], names: es.map(e => (foodById(e.foodId) || {}).name).filter(Boolean) });
+        es.forEach(e => {
+          if (entryNut(e).carb < 20) return;
+          const f = foodById(e.foodId); if (!f) return;
+          const o = foods[f.id] || (foods[f.id] = { id: f.id, name: f.name, posts: [], rises: [] });
+          o.posts.push(v.post); if (v.pre) o.rises.push(v.post - v.pre);
+        });
+      });
+    });
+    const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+    const ranked = Object.values(foods).filter(o => o.posts.length >= 2)
+      .map(o => ({ ...o, n: o.posts.length, avg: avg(o.posts), rise: avg(o.rises) })).sort((a, b) => b.avg - a.avg);
+    const over = meals.filter(x => x.carb > x.goal), within = meals.filter(x => x.carb <= x.goal);
+    const v = { meals, fasting, ranked, byId: Object.fromEntries(ranked.map(o => [o.id, o])), avg,
+      carbOver: avg(over.map(x => x.post)), carbOk: avg(within.map(x => x.post)), nOver: over.length, nOk: within.length };
+    bgCache = { key, v };
+    return v;
+  }
+  const myTag = id => { const o = profile && bgStats().byId[id]; return o ? `<span class="tag ${o.avg >= BG_HIGH ? 'bad' : o.avg >= 160 ? 'warn' : ''}">내 식후 ${Math.round(o.avg)}</span>` : ''; };
+
+  /* ---------- 자주 먹은 끼니 (최근 60일, 같은 음식·양 조합) ---------- */
+  function frequentMeals(m) {
+    const map = {};
+    daysBack(60).forEach(ds => {
+      const es = dayEntries(ds).filter(e => e.meal === m && foodById(e.foodId)); if (!es.length) return;
+      const items = es.map(e => [e.foodId, e.ratio]);
+      const sig = items.map(x => x.join('*')).sort().join('|');
+      const o = map[sig] || (map[sig] = { sig, items, n: 0, last: ds });
+      o.n++; if (ds > o.last) o.last = ds;
+    });
+    return Object.values(map).sort((a, b) => b.n - a.n || (a.last < b.last ? 1 : -1)).slice(0, 4);
+  }
+  const mealLabel = items => items.map(([id, r]) => (foodById(id) || {}).name + (r !== 1 ? ` ${fmtRatio(r)}` : '')).join(' · ');
+  function repeatMeal(m, sig) {
+    const fm = frequentMeals(m).find(x => x.sig === sig); if (!fm) return;
+    const list = (logs[S.date] = logs[S.date] || []);
+    fm.items.forEach(([id, r], i) => list.push({ id: Date.now().toString(36) + i, meal: m, foodId: id, ratio: r, photoBefore: null, photoAfter: null }));
+    store.save('dk_logs', logs); toast(`${MEAL_NAME[m]}을(를) 늘 먹던 대로 기록했어요`);
+  }
+  function freqHtml(m) {
+    const fm = frequentMeals(m); if (!fm.length) return '';
+    return `<div class="freq"><h3>자주 먹은 ${MEAL_NAME[m]} · 누르면 바로 기록</h3>${fm.map(x => `<button class="fq" data-act="repeat" data-m="${m}" data-sig="${esc(x.sig)}"><span>${esc(mealLabel(x.items))}</span><small>${x.n}번</small></button>`).join('')}</div>`;
+  }
+
+  /* ---------- 가족에게 공유 (카카오톡 등) ---------- */
+  function shareDay() {
+    const T = getT(), es = dayEntries(S.date), t = sumNut(es), d = new Date(S.date + 'T00:00:00');
+    const sc = NUTRI.sugarScore(t.sugar, T.sugar), cs = NUTRI.carbScore(t.carb, T.carb), gs = NUTRI.glycemicScore(sc.score, cs.score);
+    const lines = [`[당지킴] ${d.getMonth() + 1}월 ${d.getDate()}일${profile.name ? ' · ' + profile.name : ''}`];
+    MEALS.forEach(m => {
+      const xs = es.filter(e => e.meal === m); if (!xs.length) return;
+      const b = (bg[S.date] || {})[m] || {};
+      const g = [b.pre ? `식전 ${b.pre}` : '', b.post ? `식후 ${b.post}` : ''].filter(Boolean).join(' / ');
+      lines.push(`${MEAL_NAME[m]}: ${xs.map(e => (foodById(e.foodId) || {}).name + (e.ratio !== 1 ? ` ${fmtRatio(e.ratio)}` : '')).join(', ')}${g ? ` (혈당 ${g})` : ''}`);
+    });
+    lines.push(`탄수화물 ${Math.round(t.carb)}/${T.carb}g · 당류 ${r1(t.sugar)}/${T.sugar}g · ${Math.round(t.kcal)}kcal`);
+    lines.push(`혈당 관리 ${gs}점 / 5점`);
+    const text = lines.join('\n');
+    if (navigator.share) navigator.share({ text }).catch(() => {});
+    else if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('복사했어요. 카카오톡에 붙여 넣으세요'), () => toast('복사하지 못했어요'));
+    else toast('이 브라우저는 공유를 지원하지 않아요');
+  }
+
   /* ---------- 식단 예시 (선호 음식 · 주간 식비 반영) ---------- */
   const won = n => Math.round(n / 100) * 100 >= 10000 ? (Math.round(n / 1000) / 10).toLocaleString('ko-KR') + '만원' : (Math.round(n / 100) * 100).toLocaleString('ko-KR') + '원';
   const DAY_NAME = ['월', '화', '수', '목', '금', '토', '일'];
@@ -161,14 +244,20 @@
   // 선호 종류가 있으면 해당 템플릿만, 2개 미만이면 나머지도 뒤에 붙임
   function candidates(m) {
     const all = MEAL_TEMPLATES[m], pref = (profile && profile.cuisines) || [];
-    if (!pref.length || m === 'snack') return all;
-    const hit = all.filter(t => t.t.some(x => pref.includes(x)));
-    return hit.length >= 2 ? hit : hit.concat(all.filter(t => !hit.includes(t)));
+    let list = all;
+    if (pref.length && m !== 'snack') {
+      const hit = all.filter(t => t.t.some(x => pref.includes(x)));
+      list = hit.length >= 2 ? hit : hit.concat(all.filter(t => !hit.includes(t)));
+    }
+    // 내 혈당을 많이 올렸던 음식(식후 평균 180 이상, 2번 이상)이 든 예시는 뒤로
+    const bad = t => t.ids.some(id => { const o = bgStats().byId[id]; return o && o.avg >= BG_HIGH; });
+    const good = list.filter(t => !bad(t));
+    return good.length >= 2 ? good.concat(list.filter(bad)) : list;
   }
 
   let weekCache = null;
   function weekPlan(T) {
-    const key = JSON.stringify([T.meals, profile.cuisines, profile.budget, S.planIdx]);
+    const key = JSON.stringify([T.meals, profile.cuisines, profile.budget, S.planIdx, Object.keys(bgStats().byId).filter(k => bgStats().byId[k].avg >= BG_HIGH)]);
     if (weekCache && weekCache.key === key) return weekCache.v;
     const C = Object.fromEntries(MEALS.map(m => [m, candidates(m)]));
     const built = {}; // 템플릿별 계산 결과 캐시
@@ -248,6 +337,7 @@
         <p>${T.meals[nextMeal]}kcal · 탄수화물 ${Math.round(T.carb * MEAL_SPLIT[nextMeal])}g 안팎에 맞춘 예시예요.</p>
         ${menuList(items)}
         <div class="stack"><button class="btn" data-act="planadd" data-m="${nextMeal}">이대로 먹었어요 — 기록하기</button>
+        ${(() => { const f = frequentMeals(nextMeal)[0]; return f && f.n >= 2 ? `<button class="btn alt" data-act="repeat" data-m="${nextMeal}" data-sig="${esc(f.sig)}">늘 먹던 대로: ${esc(mealLabel(f.items))}</button>` : ''; })()}
         <div class="row"><button class="btn alt" data-act="plannext" data-m="${nextMeal}" data-back="today">다른 예시</button>
         <button class="btn alt" data-act="startlog" data-m="${nextMeal}">직접 고르기</button></div></div></section>`;
     } else {
@@ -280,6 +370,8 @@
         <div><b class="num">${Math.round(t.kcal)}</b><span>kcal · 목표 ${T.kcal}</span></div></div>
       </section>
       ${nextHtml}
+      ${entries.length ? `<section class="sec"><button class="btn alt" data-act="share">가족에게 오늘 기록 보내기</button></section>` : ''}
+      ${insightCard()}
       ${entries.length ? `<section class="sec"><h2>오늘의 평가</h2>
         <p style="margin:0">탄수화물 <b>${cs.score}점</b> · 당류 <b>${sc.score}점</b></p>
         <p class="muted" style="margin:4px 0 0">${cs.score <= sc.score ? cs.msg : sc.msg}</p>${notes}
@@ -317,13 +409,25 @@
       <div class="mealhead"><div class="t"><span>${MEAL_NAME[m]} 탄수화물</span><span class="num"><b>${Math.round(s.carb)}</b> / ${goalC}g</span></div>
         <div class="meter" style="margin:8px 0 0"><div class="bar"><i class="${over}" style="width:${Math.min(100, goalC ? s.carb / goalC * 100 : 0)}%"></i></div></div></div>
       <div style="margin-top:12px;border-top:1px solid var(--line)">${list}</div>
+      ${es.length ? bgBox(m) : ''}
       <div class="after stack">
         <button class="btn" data-act="openpicker">${MEAL_NAME[m]}에 음식 ${es.length ? '더 ' : ''}추가</button>
+        ${!es.length ? freqHtml(m) : ''}
         ${!es.length ? `<div class="sec" style="padding:18px 0 0;border:0"><h3 style="margin-top:0">고르기 귀찮다면</h3>${menuList(items)}
           <div class="row"><button class="btn alt" data-act="plannext" data-m="${m}" data-back="log">다른 예시</button><button class="btn dark" data-act="planadd" data-m="${m}">이대로 기록</button></div></div>` : ''}
         ${es.length ? (nextMeal ? `<button class="btn alt" data-act="setmeal" data-m="${nextMeal}">${MEAL_NAME[m]} 끝 — ${MEAL_NAME[nextMeal]} 기록하기</button>` : '') : ''}
         ${es.length ? `<button class="btn quiet" data-act="nav" data-v="today">오늘 결과 보기</button>` : ''}
       </div>`;
+  }
+
+  function bgBox(m) {
+    const v = (bg[S.date] || {})[m] || {};
+    const preLabel = m === 'breakfast' ? '공복(식전)' : '식전';
+    const hi = v.post >= BG_HIGH;
+    return `<div class="bgbox"><h3>혈당 <span class="muted sm">(선택 · mg/dL)</span></h3>
+      <div class="bgrow"><label><span>${preLabel}</span><input data-bg="pre" data-m="${m}" type="number" inputmode="numeric" value="${v.pre || ''}" placeholder="—" /></label>
+      <label><span>식후 2시간</span><input data-bg="post" data-m="${m}" type="number" inputmode="numeric" value="${v.post || ''}" placeholder="—" class="${hi ? 'hi' : ''}" /></label></div>
+      <p class="muted sm" style="margin:8px 0 0">${hi ? `식후 2시간 혈당이 ${BG_HIGH} 이상이에요. 이 끼니의 밥·면 양을 다음엔 줄여 보세요.` : '식후 2시간 혈당을 적어 두면 어떤 음식이 내 혈당을 많이 올리는지 리포트에서 알려 드려요.'}</p></div>`;
   }
 
   /* ---------- 음식 고르기 오버레이 ---------- */
@@ -335,7 +439,7 @@
   const DB_LIMIT = 60;
   function foodRow(f) {
     return `<button class="food" data-act="pickfood" data-id="${esc(f.id)}"><span><span class="n">${esc(f.name)}</span><br><span class="u">${esc(f.unit)} · ${f.kcal}kcal${f.db ? ` · ${esc(f.origin.replace('식약처 DB · ', ''))}` : ''}</span></span>
-      <span class="r">${giTag(f.id)}<span class="c tag ${worse(carbLevel(f.carb), sugarLevel(f.sugar))}">탄수화물 ${f.carb}g</span><span class="u num">당류 ${f.sugar}g</span></span></button>`;
+      <span class="r">${myTag(f.id)}${giTag(f.id)}<span class="c tag ${worse(carbLevel(f.carb), sugarLevel(f.sugar))}">탄수화물 ${f.carb}g</span><span class="u num">당류 ${f.sugar}g</span></span></button>`;
   }
   function foodRows() {
     const P = S.picker, q = norm(P.q || '');
@@ -513,6 +617,76 @@
         <p class="fine">가격은 공공데이터에 없어 앱이 정한 추정치예요. 밥·국·반찬은 집밥 재료비, 덮밥·초밥·탕 같은 일품요리는 외식 1인분 기준이라 지역과 가게마다 달라요.</p></section>`;
   }
 
+  function insightCard() {
+    const B = bgStats();
+    if (B.meals.length < 3) return '';
+    const worst = B.ranked.filter(o => o.avg >= 160).slice(0, 2);
+    return `<section class="sec"><h2>내 혈당 반응</h2>
+      <p class="muted" style="margin:0 0 8px">식후 혈당 ${B.meals.length}번을 기록했어요.${B.nOver && B.nOk ? ` 한 끼 탄수화물이 목표를 넘었을 때 평균 <b class="num">${Math.round(B.carbOver)}</b>, 목표 이내일 때 <b class="num">${Math.round(B.carbOk)}</b>이었어요.` : ''}</p>
+      ${worst.length ? `<div class="note">${worst.map(o => `<b>${esc(o.name)}</b> 먹은 뒤 평균 ${Math.round(o.avg)}`).join(', ')}. 양을 줄이거나 다른 메뉴로 바꿔 보세요.</div>` : ''}
+      <button class="btn quiet" data-act="nav" data-v="report">음식별 혈당 반응 전체 보기</button></section>`;
+  }
+
+  function viewReport() {
+    const T = getT(), p = profile, n = S.repDays, ds = daysBack(n).reverse();
+    const rec = ds.filter(d => dayEntries(d).length);
+    const tots = rec.map(d => sumNut(dayEntries(d)));
+    const B = bgStats(n), avg = B.avg;
+    const mean = k => avg(tots.map(t => t[k])) || 0;
+    const pct = (v, g) => g ? Math.round(v / g * 100) : 0;
+    const overDays = tots.filter(t => t.carb > T.carb * 1.1).length;
+    const mealAvg = m => avg(rec.map(d => sumNut(dayEntries(d).filter(e => e.meal === m)).carb)) || 0;
+    const postBy = m => B.meals.filter(x => x.m === m).map(x => x.post);
+    const allPost = B.meals.map(x => x.post);
+    const inTarget = allPost.length ? Math.round(allPost.filter(v => v < BG_HIGH).length / allPost.length * 100) : null;
+    // 당류를 많이 준 음식
+    const sug = {};
+    rec.forEach(d => dayEntries(d).forEach(e => { const f = foodById(e.foodId); if (!f) return; const o = sug[f.id] || (sug[f.id] = { name: f.name, g: 0, n: 0 }); o.g += entryNut(e).sugar; o.n++; }));
+    const topSugar = Object.values(sug).filter(o => o.g >= 5).sort((a, b) => b.g - a.g).slice(0, 5);
+    const cond = { diabetes: '당뇨병', htn: '고혈압', dyslipid: '이상지질혈증', kidney: '신장질환' };
+    const labs = [['공복혈당', p.fbs, 'mg/dL'], ['식후 2시간', p.ppg, 'mg/dL'], ['당화혈색소', p.hba1c, '%'], ['LDL', p.ldl, 'mg/dL'], ['중성지방', p.tg, 'mg/dL'], ['혈압', p.sbp && p.dbp ? `${p.sbp}/${p.dbp}` : null, 'mmHg']].filter(x => x[1]);
+    const d0 = new Date(ds[0] + 'T00:00:00'), d1 = new Date(ds[ds.length - 1] + 'T00:00:00');
+    const fmt = d => `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+    const row = (a, b, c) => `<tr><th>${a}</th><td class="num">${b}</td>${c !== undefined ? `<td class="num muted">${c}</td>` : ''}</tr>`;
+    const rankRow = o => `<tr><th>${esc(o.name)}</th><td class="num"><b>${Math.round(o.avg)}</b></td><td class="num muted">${o.n}번${o.rise !== null ? ` · 상승 ${o.rise > 0 ? '+' : ''}${Math.round(o.rise)}` : ''}</td></tr>`;
+    const hi = B.ranked.filter(o => o.avg >= 160).slice(0, 5), lo = B.ranked.slice().reverse().filter(o => !hi.includes(o) && o.avg < BG_HIGH).slice(0, 5);
+
+    return `<div class="top"><h1>리포트</h1></div>
+      <section class="sec noprint" style="padding-top:6px"><div class="seg2">${[30, 90].map(v => `<button class="opt ${n === v ? 'on' : ''}" data-act="repdays" data-v="${v}">최근 ${v}일</button>`).join('')}</div></section>
+      <div class="report">
+      <section class="sec"><h2 class="ptitle">식사·혈당 기록 요약</h2>
+        <p class="muted" style="margin:0">${esc(p.name || '')} · ${p.sex === 'M' ? '남' : '여'} ${p.age}세 · ${p.height}cm · ${p.weight}kg (BMI ${NUTRI.bmi(p).toFixed(1)})${(p.conditions || []).length ? ' · ' + p.conditions.map(c => cond[c]).join(', ') : ''}<br>
+        기간 ${fmt(d0)} ~ ${fmt(d1)} · 식사 기록 ${rec.length}일 · 식후 혈당 ${B.meals.length}회</p>
+        ${labs.length ? `<p class="muted sm" style="margin:6px 0 0">최근 검사(입력값): ${labs.map(x => `${x[0]} ${x[1]}${x[2]}`).join(' · ')}</p>` : ''}</section>
+      ${rec.length ? `<section class="sec"><h2>하루 평균 섭취</h2><table class="rt"><tbody>
+        ${row('열량', `${Math.round(mean('kcal'))}kcal`, `목표의 ${pct(mean('kcal'), T.kcal)}%`)}
+        ${row('탄수화물', `${Math.round(mean('carb'))}g`, `목표의 ${pct(mean('carb'), T.carb)}%`)}
+        ${row('당류', `${r1(mean('sugar'))}g`, `상한의 ${pct(mean('sugar'), T.sugar)}%`)}
+        ${row('단백질', `${Math.round(mean('protein'))}g`, `목표의 ${pct(mean('protein'), T.protein)}%`)}
+        ${row('식이섬유', `${r1(mean('fiber'))}g`, `목표의 ${pct(mean('fiber'), T.fiber)}%`)}
+        </tbody></table>
+        <p class="muted sm" style="margin:8px 0 0">탄수화물이 목표보다 10% 넘게 많았던 날: ${overDays}일 / ${rec.length}일</p>
+        <h3>끼니별 평균 탄수화물</h3><table class="rt"><tbody>${MEALS.map(m => row(MEAL_NAME[m], `${Math.round(mealAvg(m))}g`, `목표 ${Math.round(T.carb * MEAL_SPLIT[m])}g`)).join('')}</tbody></table></section>` : `<section class="sec"><div class="empty">이 기간에 식사 기록이 없어요.</div></section>`}
+      <section class="sec"><h2>혈당</h2>
+        ${B.meals.length || B.fasting.length ? `<table class="rt"><tbody>
+          ${B.fasting.length ? row('공복', Math.round(avg(B.fasting)), `${B.fasting.length}회 평균`) : ''}
+          ${MEALS.filter(m => postBy(m).length).map(m => row(`${MEAL_NAME[m]} 식후 2시간`, Math.round(avg(postBy(m))), `${postBy(m).length}회 · 최고 ${Math.max(...postBy(m))}`)).join('')}
+          ${inTarget !== null ? row(`식후 ${BG_HIGH} 미만`, `${inTarget}%`, `${allPost.length}회 중`) : ''}
+          ${B.nOver && B.nOk ? row('끼니 탄수화물 목표 초과 시', Math.round(B.carbOver), `${B.nOver}회 평균`) + row('목표 이내일 때', Math.round(B.carbOk), `${B.nOk}회 평균`) : ''}
+        </tbody></table>` : `<p class="muted" style="margin:0">기록 화면에서 끼니마다 식전·식후 2시간 혈당을 적으면 여기에 모여요.</p>`}</section>
+      <section class="sec"><h2>음식별 식후 혈당 (내 기록)</h2>
+        ${B.ranked.length ? `${hi.length ? `<h3>많이 올린 음식</h3><table class="rt rank"><tbody>${hi.map(rankRow).join('')}</tbody></table>` : ''}
+          ${lo.length ? `<h3>덜 올린 음식</h3><table class="rt rank"><tbody>${lo.map(rankRow).join('')}</tbody></table>` : ''}
+          <p class="muted sm" style="margin:8px 0 0">탄수화물 20g 이상인 음식(밥·면·빵·과일 등)만, 2번 이상 먹은 것만 셌어요. 함께 먹은 음식·양·운동·약에 따라 달라지는 경향이라 원인으로 단정할 수는 없어요.</p>`
+        : `<p class="muted" style="margin:0">같은 음식을 먹고 식후 혈당을 2번 이상 적으면 순위가 생겨요.${B.meals.length ? ` 지금 식후 혈당 ${B.meals.length}회 기록.` : ''}</p>`}</section>
+      ${topSugar.length ? `<section class="sec"><h2>당류를 많이 준 음식</h2><table class="rt"><tbody>${topSugar.map(o => row(esc(o.name), `${r1(o.g)}g`, `${o.n}회 합계`)).join('')}</tbody></table></section>` : ''}
+      <p class="fine">본인이 입력한 식사·혈당 기록과 식약처 영양성분 DB로 계산했어요. 진단이나 처방이 아니며, 진료 때 참고 자료로 보여 주세요.</p>
+      </div>
+      <section class="sec noprint"><button class="btn" data-act="print">PDF로 저장 · 인쇄</button>
+        <p class="muted sm" style="margin:8px 0 0">인쇄 화면에서 프린터를 "PDF로 저장"으로 고르면 파일로 저장돼요.</p>
+        <button class="btn quiet" data-act="nav" data-v="learn">알아두기 보기</button></section>`;
+  }
+
   function planNote(T, p) {
     const P = T.plan; if (!P) return '';
     if (P.mismatch) return `<div class="note">목표 체중이 고른 목표와 반대 방향이라 기본값(${p.goal === 'diet' ? '−500' : '+300'}kcal)으로 계산했어요.</div>`;
@@ -540,7 +714,7 @@
         ${T.protCapped ? '<div class="note">당뇨가 있어 단백질은 체중 1kg당 1.3g을 넘지 않게 잡았어요. 고단백식은 당뇨로 약해진 신장에 부담이 될 수 있어요.</div>' : ''}</section>
       ${S.justFinished ? `<section class="sec"><button class="btn" data-act="startlog" data-m="${autoMeal()}">첫 끼니 기록하기</button></section>` : ''}
       <section class="sec"><h2>영양판정</h2>${groups.map(g => `<h3>${g}</h3>${rows.filter(r => r.grp === g).map(r => `<div class="judge"><div class="a">${r.name}<small>${esc(r.note)}</small></div><div class="b"><b>${esc(r.val)}</b>${r.lv === 'info' ? '' : `<span class="tag ${dot[r.lv]}">${lab[r.lv]}</span>`}</div></div>`).join('')}`).join('')}</section>
-      <section class="sec"><button class="btn alt" data-act="wizedit">정보 수정하기</button></section>`;
+      <section class="sec stack"><button class="btn alt" data-act="wizedit">정보 수정하기</button><button class="btn quiet" data-act="nav" data-v="learn">알아두기 · 식사요법 안내</button></section>`;
   }
 
   function viewLearn() {
@@ -643,7 +817,7 @@
     if (S.route === 'wizard') { if (!S.wiz.d.sex) startWizardInit(); view.innerHTML = viewWizard(); nav.classList.add('off'); window.scrollTo(0, 0); return; }
     nav.classList.remove('off');
     nav.innerHTML = `<div class="in">${NAV.map(([k, n]) => `<button class="${S.route === k ? 'on' : ''}" data-act="nav" data-v="${k}" aria-label="${n}">${ICON[k === 'today' ? 'today' : k]}${n}</button>`).join('')}</div>`;
-    const fn = { today: viewToday, log: viewLog, plan: viewPlan, me: viewMe, learn: viewLearn }[S.route] || viewToday;
+    const fn = { today: viewToday, log: viewLog, plan: viewPlan, me: viewMe, learn: viewLearn, report: viewReport }[S.route] || viewToday;
     view.innerHTML = fn();
   }
   function startWizardInit() { S.wiz.d = Object.assign({}, DEF, S.wiz.d); }
@@ -682,6 +856,10 @@
       case 'wback': S.wiz.step--; render(); break;
       case 'wnext': wizNext(!!d.skip); break;
       case 'wizedit': startWizard(profile); break;
+      case 'repeat': repeatMeal(d.m, d.sig); S.meal = d.m; S.route = 'log'; render(); window.scrollTo(0, 0); break;
+      case 'share': shareDay(); break;
+      case 'repdays': S.repDays = Number(d.v); render(); break;
+      case 'print': window.print(); break;
     }
   });
   function viewWizardKeep() { const sc = window.scrollY; render(); window.scrollTo(0, sc); }
@@ -709,6 +887,11 @@
   document.addEventListener('change', e => {
     const t = e.target;
     if (t.id === 'dateInput' && t.value) { S.date = t.value; render(); }
+    else if (t.dataset.bg) {
+      const v = parseInt(t.value, 10), day = (bg[S.date] = bg[S.date] || {}), o = (day[t.dataset.m] = day[t.dataset.m] || {});
+      if (v >= 20 && v <= 600) o[t.dataset.bg] = v; else { delete o[t.dataset.bg]; if (t.value) toast('혈당은 20~600 사이 숫자로 적어 주세요'); }
+      store.save('dk_bg', bg); if (t.dataset.bg === 'post' && o.post) toast('식후 혈당을 저장했어요'); render();
+    }
     else if (t.id === 'photoBefore' || t.id === 'photoAfter') {
       const f = t.files[0]; if (!f) return;
       readPhoto(f, data => { if (t.id === 'photoBefore') S.picker.pb = data; else S.picker.pa = data; const sc = $('#overlay').scrollTop; renderPicker(); $('#overlay').scrollTop = sc; const dd = $('details.fold'); if (dd) dd.open = true; });

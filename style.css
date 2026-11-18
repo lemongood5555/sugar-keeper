@@ -268,3 +268,35 @@ pre.raw { white-space: pre-wrap; font-size: 0.78rem; background: var(--white); p
 .tips { margin: 14px 0 0; padding-left: 1.1em; color: var(--ink-2, #445); line-height: 1.6; }
 .tips li + li { margin-top: 4px; }
 .dbhead { padding: 14px 20px 8px; font-size: .85rem; color: var(--slate); background: var(--track); border-top: 1px solid var(--line); }
+
+/* 혈당 입력 */
+.bgbox { margin: 16px 20px 0; padding: 14px 16px; border: 2px solid var(--line); border-radius: 16px; background: var(--white); }
+.bgbox h3 { margin: 0 0 10px; font-size: 1rem; }
+.bgrow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.bgrow label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 700; color: var(--slate); }
+.bgrow input { font: inherit; font-size: 1.35rem; font-weight: 800; color: var(--ink); min-height: 52px; padding: 6px 12px; border: 2px solid var(--line); border-radius: 12px; width: 100%; background: var(--white); font-variant-numeric: tabular-nums; }
+.bgrow input:focus { outline: none; border-color: var(--celadon); }
+.bgrow input.hi { border-color: var(--pepper); color: var(--pepper); }
+
+/* 자주 먹은 끼니 */
+.freq h3 { margin: 6px 0 8px; font-size: 1rem; }
+.fq { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 10px; text-align: left; min-height: 54px; padding: 10px 14px; margin-bottom: 8px; border: 2px solid var(--line); border-radius: 14px; background: var(--white); font: inherit; font-weight: 700; color: var(--ink); }
+.fq small { flex: none; color: var(--slate); font-weight: 600; }
+.fq:active { background: var(--track); }
+
+/* 리포트 표 */
+.rt { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.rt th { text-align: left; font-weight: 600; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.rt td { text-align: right; padding: 9px 0 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.rt td.muted { font-size: .82rem; }
+.report h3 { margin: 16px 0 4px; font-size: .95rem; }
+
+@media print {
+  .nav, .noprint, .toast, #overlay, .datepick { display: none !important; }
+  body { background: #fff; }
+  #view { padding-bottom: 0 !important; }
+  .top h1 { font-size: 1.2rem; }
+  .sec { break-inside: avoid; padding: 10px 0 !important; }
+  .report { font-size: 11pt; }
+  .fine { padding: 10px 0; }
+}
