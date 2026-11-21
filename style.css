@@ -305,3 +305,6 @@ pre.raw { white-space: pre-wrap; font-size: 0.78rem; background: var(--white); p
 .lnk{background:none;border:0;padding:0;font:inherit;color:#2E7D6B;text-decoration:underline;cursor:pointer}
 .help a{color:#2E7D6B;word-break:break-all}
 .help .num{line-height:1.7}
+
+.meter .bar.two{position:relative;overflow:visible}
+.meter .bar.two u{position:absolute;top:-3px;bottom:-3px;width:2px;background:#4a5a52;border-radius:1px}

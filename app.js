@@ -106,6 +106,15 @@
       <div class="bar"><i class="${cls}" style="width:${pct}%"></i></div></div>`;
   }
 
+  // 당류 게이지: 막대 끝 = 공식 상한(총당류 20%), 가운데 눈금 = 앱 권장(10%)
+  function meterSugar(label, val, T) {
+    const pct = T.sugarMax ? Math.min(100, (val / T.sugarMax) * 100) : 0;
+    const cls = val > T.sugarMax ? 'bad' : val > T.sugar ? 'warn' : '';
+    return `<div class="meter"><div class="h"><b>${label}</b><span class="num"><b>${r1(val)}</b> / 권장 ${T.sugar}g</span></div>
+      <div class="bar two"><i class="${cls}" style="width:${pct}%"></i><u style="left:${T.sugarMax ? T.sugar / T.sugarMax * 100 : 50}%"></u></div>
+      <p class="muted sm" style="margin:4px 0 0">초록 ~${T.sugar}g 권장 · 노랑 ~${T.sugarMax}g 공식 상한 안 · 빨강 공식 상한 초과</p></div>`;
+  }
+
   /* ---------- 대체 추천 ---------- */
   function itemFlags(e, T) {
     const n = entryNut(e);
@@ -250,7 +259,7 @@
   /* ---------- 가족에게 공유 (카카오톡 등) ---------- */
   function shareDay() {
     const T = getT(), es = dayEntries(S.date), t = sumNut(es), d = new Date(S.date + 'T00:00:00');
-    const sc = NUTRI.sugarScore(t.sugar, T.sugar), cs = NUTRI.carbScore(t.carb, T.carb), gs = NUTRI.glycemicScore(sc.score, cs.score);
+    const sc = NUTRI.sugarScore(t.sugar, T.sugar, T.sugarMax), cs = NUTRI.carbScore(t.carb, T.carb), gs = NUTRI.glycemicScore(sc.score, cs.score);
     const lines = [`[당지킴] ${d.getMonth() + 1}월 ${d.getDate()}일${profile.name ? ' · ' + profile.name : ''}`];
     MEALS.forEach(m => {
       const xs = es.filter(e => e.meal === m); if (!xs.length) return;
@@ -355,7 +364,7 @@
      ===================================================== */
   function viewToday() {
     const T = getT(), entries = dayEntries(S.date), t = sumNut(entries);
-    const sc = NUTRI.sugarScore(t.sugar, T.sugar), cs = NUTRI.carbScore(t.carb, T.carb);
+    const sc = NUTRI.sugarScore(t.sugar, T.sugar, T.sugarMax), cs = NUTRI.carbScore(t.carb, T.carb);
     const gs = NUTRI.glycemicScore(sc.score, cs.score);
     const rem = Math.round(T.carb - t.carb);
     const name = profile.name ? `${esc(profile.name)}님` : '오늘';
@@ -410,7 +419,7 @@
 
     return `${dateBar('하루 기록')}
       <section class="tray"><p class="lead">${lead}</p><div class="big ${entries.length && rem < 0 ? 'over' : ''}">${bigHtml}</div>
-        <p class="sub num">당류는 ${T.sugar}g까지 · 지금까지 ${r1(t.sugar)}g</p>
+        <p class="sub num">당류는 ${T.sugar}g 권장 · 공식 상한 ${T.sugarMax}g · 지금까지 ${r1(t.sugar)}g</p>
         <div class="slots" aria-label="끼니별 탄수화물">${slots}</div>
         <div class="gl"><div><b class="stars" aria-label="혈당 관리 ${gs}점">${[1, 2, 3, 4, 5].map(i => `<span class="${entries.length && i <= gs ? '' : 'off'}">★</span>`).join('')}</b><span>${entries.length ? `혈당 관리 ${gs}점 / 5점` : '아직 기록이 없어요'}</span></div>
         <div><b class="num">${Math.round(t.kcal)}</b><span>kcal · 목표 ${T.kcal}</span></div></div>
@@ -423,7 +432,7 @@
         <p class="muted" style="margin:4px 0 0">${cs.score <= sc.score ? cs.msg : sc.msg}</p>${notes}
         ${highs.length ? `<h3>이렇게 바꿔 보세요</h3>${highs.map(e => swapHtml(e, T)).join('')}` : ''}</section>
       <section class="sec"><h2>영양성분</h2>
-        ${meter('탄수화물 (전분 포함)', t.carb, T.carb, 'g')}${meter('당류 (단순당)', t.sugar, T.sugar, 'g')}
+        ${meter('탄수화물 (전분 포함)', t.carb, T.carb, 'g')}${meterSugar('당류 (총당류)', t.sugar, T)}
         ${meter('열량', t.kcal, T.kcal, 'kcal')}${meter('단백질', t.protein, T.protein, 'g', 'min')}
         ${meter('식이섬유', t.fiber, T.fiber, 'g', 'min')}${meter('지방', t.fat, T.fat, 'g')}</section>` : ''}
       <section class="sec"><h2>최근 7일 탄수화물</h2><div class="week">
@@ -654,7 +663,7 @@
         ${budgetHtml}
         <div class="mealtabs days" role="tablist">${W.days.map((x, i) => `<button role="tab" aria-selected="${i === d}" class="${i === d ? 'on' : ''}" data-act="planday" data-v="${i}">${DAY_NAME[i]}<small class="num">${won(dayCost(x))}</small></button>`).join('')}</div>
         ${blocks}</section>
-      <section class="sec"><h2>${DAY_NAME[d]}요일 합계</h2>${meter('열량', tot.kcal, T.kcal, 'kcal')}${meter('탄수화물', tot.carb, T.carb, 'g')}${meter('당류', tot.sugar, T.sugar, 'g')}${meter('단백질', tot.protein, T.protein, 'g', 'min')}</section>
+      <section class="sec"><h2>${DAY_NAME[d]}요일 합계</h2>${meter('열량', tot.kcal, T.kcal, 'kcal')}${meter('탄수화물', tot.carb, T.carb, 'g')}${meterSugar('당류', tot.sugar, T)}${meter('단백질', tot.protein, T.protein, 'g', 'min')}</section>
       <section class="sec"><h2>밖에서 먹을 때</h2>
         <p class="muted" style="margin:0 0 10px">지금 위치 근처에서 지도 앱으로 찾아봐요. 당뇨 식단 인증 식당 목록은 없어서, 고르기 쉬운 메뉴로 검색해요.</p>
         <div class="maps">${qs.map(q => `<div class="mq"><span>${esc(q)}</span><a class="btn alt sm" href="https://map.naver.com/p/search/${enc(q)}" target="_blank" rel="noopener">네이버지도</a><a class="btn alt sm" href="https://map.kakao.com/link/search/${enc(q)}" target="_blank" rel="noopener">카카오맵</a></div>`).join('')}</div>
@@ -708,7 +717,7 @@
       ${rec.length ? `<section class="sec"><h2>하루 평균 섭취</h2><table class="rt"><tbody>
         ${row('열량', `${Math.round(mean('kcal'))}kcal`, `목표의 ${pct(mean('kcal'), T.kcal)}%`)}
         ${row('탄수화물', `${Math.round(mean('carb'))}g`, `목표의 ${pct(mean('carb'), T.carb)}%`)}
-        ${row('당류', `${r1(mean('sugar'))}g`, `상한의 ${pct(mean('sugar'), T.sugar)}%`)}
+        ${row('당류', `${r1(mean('sugar'))}g`, `권장의 ${pct(mean('sugar'), T.sugar)}% · 공식 상한의 ${pct(mean('sugar'), T.sugarMax)}%`)}
         ${row('단백질', `${Math.round(mean('protein'))}g`, `목표의 ${pct(mean('protein'), T.protein)}%`)}
         ${row('식이섬유', `${r1(mean('fiber'))}g`, `목표의 ${pct(mean('fiber'), T.fiber)}%`)}
         </tbody></table>
@@ -752,8 +761,9 @@
     return `<div class="top"><h1>${S.justFinished ? '목표가 정해졌어요' : '내 정보'}</h1></div>
       <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0 0 12px">${esc(p.name || '')} · ${p.sex === 'M' ? '남' : '여'} ${p.age}세 · ${p.height}cm · ${p.weight}kg${p.bodyFat ? ` · 체지방 ${p.bodyFat}%` : ''} · 목표 ${goalTxt}</p>
         <div class="kpis"><div><b class="num">${T.kcal}</b><span>하루 열량 (kcal)</span></div><div><b class="num">${T.carb}g</b><span>탄수화물 · 열량의 ${Math.round(T.carb * 4 / T.kcal * 100)}%</span></div>
-          <div><b class="num">${T.sugar}g</b><span>당류 상한 (에너지의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${esc(T.protBasis)})</span></div>
+          <div><b class="num">${T.sugar}g</b><span>당류 권장 (총당류, 열량의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${esc(T.protBasis)})</span></div>
           <div><b class="num">${T.fat}g</b><span>지방 (25%)</span></div><div><b class="num">${T.fiber}g</b><span>식이섬유</span></div></div>
+        <p class="muted sm" style="margin:10px 0 0">당류 공식 상한(총당류 20%)은 ${T.sugarMax}g이에요. 식약처 DB에는 첨가당이 따로 없어 총당류로 세요. 권장 10%는 첨가당 권고(10% 이내)를 총당류에 보수적으로 적용한 값이에요.</p>
         <p class="muted sm" style="margin:10px 0 0">에너지필요추정량 ${T.eer}kcal 기준이에요. 의사나 영양사가 정해 준 목표가 있다면 그 값을 따르세요. <button type="button" class="lnk" data-act="nav" data-v="evidence">계산 근거 보기</button></p>
         ${planNote(T, p)}
         ${p.cuisines && p.cuisines.length || p.budget ? `<p class="muted sm" style="margin:8px 0 0">식단 예시: ${p.cuisines && p.cuisines.length ? esc(p.cuisines.map(c => (CUISINES.find(x => x[0] === c) || [])[1]).join(', ')) + ' 위주' : '골고루'}${p.budget ? ` · 일주일 식비 ${won(p.budget)}` : ''}</p>` : ''}
@@ -810,6 +820,7 @@
       <section class="sec"><h2>기록 백업</h2><p>기록은 이 폰 안에만 저장돼요. 앱을 지우거나 폰을 바꾸면 사라질 수 있으니 가끔 <b>내 정보 → 기록 백업 파일 저장</b>을 눌러 파일을 카카오톡 "나에게 보내기"나 드라이브에 보관하세요. 새 폰에서는 같은 화면의 <b>백업 불러오기</b>로 되돌려요.</p></section>
       <section class="sec"><h2>자주 묻는 질문</h2>
         <p><b>숫자가 영양성분표와 달라요.</b> 식약처 DB는 대표 조리법의 평균값이에요. 제품이나 집밥은 다를 수 있어서 정확히 알고 싶은 음식은 직접 추가로 라벨 값을 넣으세요.</p>
+        <p><b>당류 막대의 초록·노랑·빨강은 무슨 뜻이에요?</b> 초록은 앱 권장(열량의 10%) 안, 노랑은 권장은 넘었지만 공식 상한(총당류 20%) 안, 빨강은 공식 상한을 넘은 거예요. 자세한 기준은 계산 근거·출처에 있어요.</p>
         <p><b>목표가 이상해 보여요.</b> 체중·키·활동량이 맞는지 내 정보에서 확인하세요. 의사나 영양사가 정해 준 목표가 있다면 그 값이 먼저예요.</p>
         <p><b>수정한 내용이 안 보여요.</b> 앱을 완전히 닫았다가 다시 열어 보세요.</p></section>
       <p class="fine">이 앱은 식사 기록과 교육을 돕는 도구예요. 진단·처방을 대신하지 않아요.</p>
@@ -828,7 +839,8 @@
         <p>2025 한국인 영양소 섭취기준(보건복지부, 2025년 12월 31일 개정·배포)의 범위는 탄수화물 50~65%, 단백질 10~20%, 지방 15~30%예요. 2020년 기준(탄수화물 55~65%, 단백질 7~20%)에서 바뀌었어요.</p>
         <p class="muted sm">출처: 보건복지부 2025 한국인 영양소 섭취기준 개정 보도(2025.12.31)</p></section>
       <section class="sec"><h2>당류</h2>
-        <p>2025 섭취기준은 총당류를 에너지의 20% 이내, 첨가당을 10% 이내로 제한하고 가당음료는 가능한 줄이라고 권고해요. 당지킴은 혈당 관리를 위해 이보다 엄격한 <b>에너지의 10%</b>를 하루 당류 상한으로 보여 줘요.</p>
+        <p>2025 섭취기준은 총당류를 에너지의 20% 이내, 첨가당(설탕·액상과당·물엿·꿀·시럽·농축과일주스 등)을 10% 이내로 제한하고, 주요 급원인 가당음료는 가능한 줄이라고 해요. 2020 기준의 총당류 하한(10%)은 2025에서 없어졌어요.</p>
+        <p>식약처 DB에는 첨가당이 따로 없어 당지킴은 <b>총당류</b>로 계산해요. 그래서 두 단계로 보여 줘요. <b>권장</b>은 총당류 에너지의 10%(첨가당 권고를 보수적으로 적용), <b>공식 상한</b>은 총당류 20%예요. 초록은 권장 안, 노랑은 권장은 넘었지만 공식 상한 안, 빨강은 공식 상한 초과예요.</p>
         <p>식품 영양성분표의 당류 기준치는 하루 100g(2,000kcal 기준)이에요.</p>
         <p class="muted sm">출처: 보건복지부 2025 한국인 영양소 섭취기준 / 식품의약품안전처 영양성분 표시 기준치</p></section>
       <section class="sec"><h2>단백질</h2>

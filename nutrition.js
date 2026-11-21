@@ -1,6 +1,6 @@
 /* 영양판정 및 목표 설정 로직
  * - 에너지필요추정량(EER): 2020 한국인 영양소 섭취기준 성인(19세 이상) 공식
- * - 당류 기준: KDRI 총당류 20% 이내·첨가당 10% 이내 → 앱은 모든 사용자에게 에너지의 10%를 상한으로 적용
+ * - 당류 기준: KDRI 총당류 20% 이내·첨가당 10% 이내 → 앱은 총당류 10%를 권장(초록), 20%를 공식 상한(빨강)으로 두 단계로 표시
  * - 임상 기준: 대한당뇨병학회 진료지침, 대한비만학회(BMI 23/25, 허리둘레 90/85cm)
  */
 const PA_COEF = {
@@ -81,13 +81,14 @@ const NUTRI = {
     // 모든 사용자 10%: KDRI 총당류 상한(20%)은 '넘지 말 것'이지 목표가 아니며, 첨가당 상한 10%를 고려해 보수적으로 적용
     const sugarPct = 0.10;
     const sugar = Math.round((kcal * sugarPct) / 4);
+    const sugarMax = Math.round((kcal * 0.20) / 4); // KDRI 2025 총당류 20% 이내(공식 상한)
 
     const fiber = p.sex === 'M' ? (p.age >= 65 ? 25 : 30) : 20;
 
     const meals = {};
     for (const m in MEAL_SPLIT) meals[m] = Math.round(kcal * MEAL_SPLIT[m]);
 
-    return { eer: Math.round(eer), kcal, protein, protPerKg, protBasis, protCapped, refWt, lbm, plan, fat, carb, sugar, sugarPct, fiber, meals, kidney };
+    return { eer: Math.round(eer), kcal, protein, protPerKg, protBasis, protCapped, refWt, lbm, plan, fat, carb, sugar, sugarMax, sugarPct, fiber, meals, kidney };
   },
 
   /* 영양판정 (ABCD 중 A·B·C 일부) */
@@ -154,13 +155,13 @@ const NUTRI = {
   },
 
   /* 하루 당류 점수 (5점 만점) */
-  sugarScore(total, limit) {
-    const r = total / limit;
+  sugarScore(total, limit, max) {
+    const r = total / limit, rmax = (max || limit * 2) / limit;
     if (r <= 0.5) return { score: 5, msg: '아주 잘 지키셨어요! 권장량의 절반 이하입니다.' };
     if (r <= 0.75) return { score: 4, msg: '양호합니다. 지금처럼 유지해 주세요.' };
     if (r <= 1.0) return { score: 3, msg: '권장량 안이지만 여유가 거의 없어요. 간식·음료를 점검해 보세요.' };
-    if (r <= 1.25) return { score: 2, msg: '권장량을 넘었어요. 아래 대체 식품을 참고해 주세요.' };
-    return { score: 1, msg: '당류 섭취가 많습니다. 단 음료·간식부터 줄여 보세요.' };
+    if (r <= rmax) return { score: 2, msg: '앱 권장(열량의 10%)은 넘었지만 공식 상한(총당류 20%) 안이에요. 아래 대체 식품을 참고해 주세요.' };
+    return { score: 1, msg: '공식 상한(총당류 20%)도 넘었어요. 단 음료·간식부터 줄여 보세요.' };
   },
 
   /* 하루 탄수화물 점수 (5점 만점) — 전분 포함 총 탄수화물이 목표를 넘을수록 감점 */
