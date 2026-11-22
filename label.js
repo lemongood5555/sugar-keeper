@@ -77,8 +77,10 @@ const LABEL = (function () {
       .replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
       .replace(/[ｇＧ]/g, 'g').replace(/[ｍＭ]/g, 'm').replace(/[ｌＬ]/g, 'l')
       .replace(/㎉/g, 'kcal').replace(/㎎/g, 'mg').replace(/㎖/g, 'ml')
-      .replace(/\s+/g, '')           // OCR이 한글 사이에 넣는 공백 제거
+      .replace(/\s+/g, ' ')
       .toLowerCase()
+      .replace(/(\d)\s+(?=g|mg|ml|kcal|%)/g, '$1')                // '10.6 g' → '10.6g', '11 %' → '11%'
+      .replace(/\s+(?=[가-힣])|(?<=[가-힣])\s+/g, '')                // 한글 옆 공백만 제거. 값과 값 사이 공백은 남겨서 숫자가 붙지 않게 함
       .replace(/(\d)(?:m[1il|]|rnl|ni)(?![a-z])/g, '$1ml')      // 500mI, 500m1 → 500ml
       .replace(/(\d)(?:rng|m9|mq)(?![a-z])/g, '$1mg')           // 5rng → 5mg
       .replace(/kca[1il|]|kral|kcai/g, 'kcal')
@@ -94,6 +96,8 @@ const LABEL = (function () {
       const tail = t.slice(m.index + m[0].length, m.index + m[0].length + 12);
       const n = tail.match(/^[^\d]{0,5}(\d{1,4})(?:[.,](\d+))?/);
       if (!n) continue;
+      // 숫자 바로 뒤가 %이면 (g 값이 아니라 기준치 %) 이 항목의 값이 아님
+      if (t[m.index + m[0].length + n[0].length] === '%') continue;
       let ip = n[1], dp = n[2] || '';
       if (opts.gram) {
         // 'g'가 숫자(9·8·6)로 읽혀 소수점 뒤에 붙은 경우: 10.6g → 10.69 → 10.6
@@ -109,7 +113,7 @@ const LABEL = (function () {
   /* 앞뒤 값이 서로 맞지 않을 때, 끝에 붙은 단위 오인식(9·8·6)을 떼어 봄 */
   function stripUnitDigit(v, limit) {
     if (v == null || !Number.isInteger(v) || v < 10 || !(v > limit)) return v;
-    if ([9, 8, 6].includes(v % 10)) { const v2 = Math.floor(v / 10); if (v2 <= limit) return v2; }
+    if ([0, 9, 8, 6, 5].includes(v % 10)) { const v2 = Math.floor(v / 10); if (v2 <= limit) return v2; }
     return v;
   }
 
@@ -134,6 +138,8 @@ const LABEL = (function () {
       v.carb = stripUnitDigit(v.carb, v.kcal / 4 * 1.2 + 2);
       v.protein = stripUnitDigit(v.protein, v.kcal / 4 * 1.2 + 2);
       v.fat = stripUnitDigit(v.fat, v.kcal / 9 * 1.2 + 2);
+    } else {
+      ['carb', 'protein', 'fat'].forEach(k => { v[k] = stripUnitDigit(v[k], 100); });   // 열량을 못 읽었을 때: 한 번 분량에 100g을 넘기 어려움
     }
     if (v.carb != null) v.sugar = stripUnitDigit(v.sugar, v.carb);
     Object.keys(v).forEach(k => { if (v[k] != null && !isNaN(v[k])) { out.values[k] = v[k]; out.found++; } });
