@@ -524,7 +524,7 @@
     const T = getT();
     if (P.mode === 'list') {
       ov.innerHTML = `<div class="in"><div class="ovhead"><button data-act="closepicker" aria-label="닫기">✕</button><h2>${MEAL_NAME[S.meal]}에 추가할 음식</h2></div>
-        <div class="pad" style="padding-bottom:0"><button class="btn" data-act="drinklabel">📷 음료 라벨 찍어서 당 확인</button></div>
+        <div class="pad" style="padding-bottom:0"><button class="btn" data-act="drinklabel">📷 영양성분표 찍어서 입력</button></div>
         <div class="search"><input id="q" type="search" placeholder="음식 이름 (예: 잡곡밥, 사과)" value="${esc(P.q)}" autocomplete="off" /></div>
         <div class="chips" id="chips">${chipRow()}</div>
         <div id="foodlist">${foodRows()}</div>
@@ -608,7 +608,7 @@
     if (r.basis) {
       const whole = r.volume && r.volume.unit === r.basis.unit && r.volume.amount > 0;
       box.innerHTML = whole
-        ? `표의 숫자는 <b>${esc(r.basis.kind)}</b> 기준이에요. 내용량이 <b>${r.volume.amount}${r.volume.unit}</b>라서 <b>한 병(캔) 전부 마신 걸로</b> 계산했어요. 일부만 마셨다면 아래 양을 바꿔 주세요.`
+        ? `표의 숫자는 <b>${esc(r.basis.kind)}</b> 기준이에요. 내용량이 <b>${r.volume.amount}${r.volume.unit}</b>라서 <b>전부 먹은(마신) 걸로</b> 계산했어요. 일부만 드셨다면 아래 양을 바꿔 주세요.`
         : `읽은 값의 기준은 <b>${esc(r.basis.kind)}</b>이에요. 마신 양이 다르면 아래에 적어 주세요.`;
       box.classList.remove('hidden');
       $('#eatUnit').textContent = `(${r.basis.unit})`; $('#cEat').value = whole ? r.volume.amount : r.basis.amount; eat.classList.remove('hidden');
@@ -632,12 +632,12 @@
     }
     box.className = cls;
     let swap = '';
-    if (val >= 10) {
+    if (val >= 10 && labelBasis && labelBasis.unit === 'ml') {
       const pref = ['americano', 'unsweet_soymilk', 'barley_tea', 'latte', 'zero_cola'];
       const alts = pref.map(foodById).filter(a => a && a.sugar <= val * 0.5).slice(0, 3);
       if (alts.length) swap = `<div style="margin-top:10px"><b>이 대신 이런 음료는 어때요?</b><div class="stack" style="margin-top:8px">${alts.map(a => `<button class="btn alt" data-act="pickfood" data-id="${esc(a.id)}">${esc(a.name)} <span class="muted sm">당류 ${a.sugar}g · ${Math.round((val - a.sugar) * 10) / 10}g 줄어요</span></button>`).join('')}</div></div>`;
     }
-    box.innerHTML = `이만큼 마시면 당류 <b class="num">${val}g</b> · 각설탕 약 <b>${cubes}개</b>(3g 기준)${msg ? '<br>' + msg : ''}${swap}`;
+    box.innerHTML = `이만큼 먹으면 당류 <b class="num">${val}g</b> · 각설탕 약 <b>${cubes}개</b>(3g 기준)${msg ? '<br>' + msg : ''}${swap}`;
   }
   function saveCustom() {
     const name = $('#cName').value.trim();
