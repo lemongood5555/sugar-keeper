@@ -148,38 +148,41 @@ const LABEL = (function () {
     return v;
   }
 
-  /* 영양소 숫자 보정: 단위 g가 숫자(0·9·8·6·5)로 붙거나 소수점이 사라진 값을 후보로 만들고,
-   * '열량 ≈ 탄수화물×4 + 단백질×4 + 지방×9', '당류·식이섬유 ≤ 탄수화물'이 가장 잘 맞는 조합을 고름 */
+  /* 영양소 숫자 보정.
+   * 1단계: 말이 안 되는 값(당류>탄수화물, 100g 초과 등)만 후보로 고쳐 본다.
+   *        후보 = 끝자리 단위 오인식 제거(g가 0·5·6·8·9로 읽힘) 또는 소수점 소실(130 → 1.3)
+   * 2단계: 열량과 영양소가 크게 안 맞을 때, 단위 오인식으로 의심되는 값이 2개 이상이고 그걸 고치면 열량과 맞을 때만 고친다.
+   * 값이 멀쩡해 보이는데 열량만 안 맞으면 영양소를 믿고 열량을 계산값으로 바꾼다(parse 끝).
+   * 멀쩡한 값(예: 54g)을 열량에 끼워 맞추기 위해 고치지는 않는다. */
+  const UNIT_TAIL = [0, 5, 6, 8, 9];
   function candidates(x) {
     if (x == null || isNaN(x)) return [null];
     const c = [{ v: x, cost: 0 }];
-    if (Number.isInteger(x) && x >= 10) {
-      c.push({ v: Math.floor(x / 10), cost: 1 });
-      c.push({ v: x / 10, cost: 1.5 });
-      if (x >= 100) c.push({ v: Math.round(x) / 100, cost: 2 });
-    }
+    if (Number.isInteger(x) && x >= 10 && UNIT_TAIL.includes(x % 10)) c.push({ v: Math.floor(x / 10), cost: 1 });
+    if (Number.isInteger(x) && x >= 100) { c.push({ v: Math.round(x) / 100, cost: 2 }); }
     return c;
   }
+  function energyOf(t) { return 4 * (t.carb || 0) + 4 * (t.protein || 0) + 9 * (t.fat || 0); }
   function energyErr(v) {
     if (v.kcal == null || !(v.kcal > 0) || v.carb == null || v.fat == null || v.protein == null) return null;
-    return Math.abs(4 * v.carb + 4 * v.protein + 9 * v.fat - v.kcal) / v.kcal;
+    return Math.abs(energyOf(v) - v.kcal) / v.kcal;
+  }
+  function hardPenalty(t) {
+    let pen = 0;
+    if (t.carb != null && t.sugar != null && t.sugar > t.carb * 1.02 + 0.2) pen += 8;
+    if (t.carb != null && t.fiber != null && t.fiber > t.carb * 1.02 + 0.2) pen += 8;
+    ['carb', 'sugar', 'protein', 'fat', 'fiber'].forEach(k => { if (t[k] != null && t[k] > 100) pen += 8; });
+    return pen;
   }
   function repair(v) {
     const keys = ['carb', 'sugar', 'protein', 'fat', 'fiber'], opts = keys.map(k => candidates(v[k]));
+    // 1단계
     let best = null;
     const pick = (i, cur, cost) => {
       if (i === keys.length) {
-        const t = {}; keys.forEach((k, j) => { t[k] = cur[j] ? cur[j].v : null; }); t.kcal = v.kcal;
-        let pen = cost;
-        if (t.carb != null && t.sugar != null && t.sugar > t.carb * 1.02 + 0.2) pen += 8;
-        if (t.carb != null && t.fiber != null && t.fiber > t.carb * 1.02 + 0.2) pen += 8;
-        keys.forEach(k => { if (t[k] != null && t[k] > 100) pen += 8; });
-        const e = energyErr(t);
-        if (e != null) pen += 10 * Math.max(0, e - 0.25);
-        else if (v.kcal > 0) {                       // 일부 항목을 못 읽었으면 '넘치는지'만 확인
-          const part = 4 * (t.carb || 0) + 4 * (t.protein || 0) + 9 * (t.fat || 0);
-          if (part > v.kcal * 1.25 + 5) pen += 8;
-        }
+        const t = {}; keys.forEach((k, j) => { t[k] = cur[j] ? cur[j].v : null; });
+        const e = energyErr({ ...t, kcal: v.kcal });
+        const pen = cost + hardPenalty(t) + (e != null ? Math.min(0.9, 10 * Math.max(0, e - 0.25)) : 0);   // 열량은 동점일 때만 영향
         if (!best || pen < best.pen) best = { pen, t };
         return;
       }
@@ -187,6 +190,17 @@ const LABEL = (function () {
     };
     pick(0, [], 0);
     if (best) keys.forEach(k => { if (v[k] != null) v[k] = best.t[k]; });
+    // 2단계
+    const e0 = energyErr(v);
+    if (e0 != null && e0 > 0.25) {
+      const m = ['carb', 'protein', 'fat'], alt = m.map(k => (v[k] != null && Number.isInteger(v[k]) && v[k] >= 10 && UNIT_TAIL.includes(v[k] % 10)) ? [v[k], Math.floor(v[k] / 10)] : [v[k]]);
+      let fix = null;
+      for (const c of alt[0]) for (const p of alt[1]) for (const f of alt[2]) {
+        const t = { carb: c, protein: p, fat: f, kcal: v.kcal }, changed = (c !== v.carb) + (p !== v.protein) + (f !== v.fat);
+        if (changed >= 2 && energyErr(t) <= 0.25 && hardPenalty({ ...v, carb: c, protein: p, fat: f }) === 0 && (!fix || changed < fix.changed)) fix = { c, p, f, changed };
+      }
+      if (fix) { v.carb = fix.c; v.protein = fix.p; v.fat = fix.f; }
+    }
   }
   /* 읽은 결과가 얼마나 믿을 만한지: 읽은 항목 수 + 열량이 영양소와 맞으면 가산점 */
   function quality(r) {
@@ -231,6 +245,12 @@ const LABEL = (function () {
       let amt = toVol(m[1]), unit = m[2];
       if (unit === 'l') { amt *= 1000; unit = 'ml'; }
       out.volume = { amount: amt, unit };
+    }
+    // 영양소 값이 서로 맞고 멀쩡한데 열량만 크게 다르면, 열량 숫자가 잘못 읽힌 것으로 보고 영양소로 계산한 값을 씀
+    const vv = out.values, amount = (out.volume || out.basis || {}).amount;
+    if (vv.kcal != null && vv.carb != null && vv.protein != null && vv.fat != null && hardPenalty(vv) === 0) {
+      const est = Math.round(energyOf(vv)), er = energyErr(vv);
+      if (er != null && er > 0.35 && est >= 5 && !(amount > 0 && est / amount > 4)) { out.kcalRead = vv.kcal; vv.kcal = est; out.kcalEstimated = true; }
     }
     return out;
   }

@@ -605,7 +605,8 @@
     const names = { kcal: '열량', carb: '탄수화물', sugar: '당류', protein: '단백질', fat: '지방' };
     const miss = Object.keys(names).filter(k => r.values[k] == null).map(k => names[k]);
     st.textContent = `${r.found}개 항목을 읽었어요. 숫자가 맞는지 꼭 확인해 주세요.` + (miss.length ? ` 못 읽은 항목: ${miss.join(', ')}` : '')
-      + (r.values.sugar != null && r.values.carb != null && r.values.sugar > r.values.carb ? ' ⚠ 당류가 탄수화물보다 커요. g가 숫자로 잘못 읽혔는지 확인하세요.' : '');
+      + (r.values.sugar != null && r.values.carb != null && r.values.sugar > r.values.carb ? ' ⚠ 당류가 탄수화물보다 커요. g가 숫자로 잘못 읽혔는지 확인하세요.' : '')
+      + (r.kcalEstimated ? ` ⚠ 열량은 읽은 값(${r.kcalRead})이 영양소와 맞지 않아 영양소로 계산한 값으로 넣었어요. 라벨의 열량과 비교해 보세요.` : '');
     if (r.basis) {
       const whole = r.volume && r.volume.unit === r.basis.unit && r.volume.amount > 0;
       box.innerHTML = whole
