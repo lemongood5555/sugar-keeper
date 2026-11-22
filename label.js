@@ -47,6 +47,34 @@ const LABEL = (function () {
     });
   }
 
+  /* 어두운 칸(예: 초록 표 안의 흰 글자)과 밝은 칸을 칸마다 따로 판단해 '흰 바탕·검은 글자'로 바꿈 */
+  function preprocessAdaptive(file) {
+    return new Promise((res, rej) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const sc = 1700 / Math.max(img.width, img.height), W = Math.round(img.width * sc), H = Math.round(img.height * sc);
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, W, H);
+        const d = ctx.getImageData(0, 0, W, H), p = d.data, n = W * H, g = new Uint8Array(n);
+        for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = 0.299 * p[j] + 0.587 * p[j + 1] + 0.114 * p[j + 2];
+        const S = new Float64Array((W + 1) * (H + 1));            // 적분 이미지
+        for (let y = 1; y <= H; y++) { let row = 0; for (let x = 1; x <= W; x++) { row += g[(y - 1) * W + x - 1]; S[y * (W + 1) + x] = S[(y - 1) * (W + 1) + x] + row; } }
+        const mean = (x, y, r) => { const x0 = Math.max(0, x - r), x1 = Math.min(W, x + r + 1), y0 = Math.max(0, y - r), y1 = Math.min(H, y + r + 1);
+          return (S[y1 * (W + 1) + x1] - S[y0 * (W + 1) + x1] - S[y1 * (W + 1) + x0] + S[y0 * (W + 1) + x0]) / ((x1 - x0) * (y1 - y0)); };
+        const r1 = Math.max(9, Math.round(Math.max(W, H) / 70)), r2 = Math.round(Math.max(W, H) / 12);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const i = y * W + x, v = g[i], m1 = mean(x, y, r1), dark = mean(x, y, r2) < 115;
+          const text = dark ? v > m1 + 14 : v < m1 - 14;
+          const o = text ? 0 : 255, j = i * 4; p[j] = p[j + 1] = p[j + 2] = o; p[j + 3] = 255;
+        }
+        ctx.putImageData(d, 0, 0); URL.revokeObjectURL(url);
+        c.toBlob(b => b ? res(b) : rej(new Error('사진을 처리하지 못했어요.')), 'image/png');
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('사진을 열 수 없어요.')); };
+      img.src = url;
+    });
+  }
+
   async function ocr(file, onProgress) {
     await loadScript(CDN);
     if (!workerPromise) {
@@ -56,14 +84,17 @@ const LABEL = (function () {
     }
     const worker = await workerPromise;
     const img = await preprocess(file);
-    // 표 형태 사진은 읽기 방식에 따라 결과 차이가 커서, 항목을 적게 읽으면 다른 방식으로 한 번 더 시도
-    let best = '', bestFound = -1;
-    for (const psm of ['6', '4', '11']) {
+    // 사진·읽기 방식마다 결과가 크게 달라서, 가장 그럴듯하게(항목 수 + 열량과 영양소가 맞는지) 읽힌 결과를 고름
+    const variants = [['gray', '6'], ['adaptive', '6'], ['gray', '4'], ['adaptive', '11']];
+    const imgs = { gray: img };
+    let best = '', bestScore = -1;
+    for (const [kind, psm] of variants) {
+      if (!imgs[kind]) imgs[kind] = await (kind === 'adaptive' ? preprocessAdaptive(file) : preprocess(file));
       await worker.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: '1' });
-      const r = await worker.recognize(img);
-      const text = r.data.text || '', f = parse(text).found;
-      if (f > bestFound) { best = text; bestFound = f; }
-      if (bestFound >= 5) break;
+      const r = await worker.recognize(imgs[kind]);
+      const text = r.data.text || '', sc = quality(parse(text));
+      if (sc > bestScore) { best = text; bestScore = sc; }
+      if (bestScore >= 8) break;
     }
     return best;
   }
@@ -117,6 +148,52 @@ const LABEL = (function () {
     return v;
   }
 
+  /* 영양소 숫자 보정: 단위 g가 숫자(0·9·8·6·5)로 붙거나 소수점이 사라진 값을 후보로 만들고,
+   * '열량 ≈ 탄수화물×4 + 단백질×4 + 지방×9', '당류·식이섬유 ≤ 탄수화물'이 가장 잘 맞는 조합을 고름 */
+  function candidates(x) {
+    if (x == null || isNaN(x)) return [null];
+    const c = [{ v: x, cost: 0 }];
+    if (Number.isInteger(x) && x >= 10) {
+      c.push({ v: Math.floor(x / 10), cost: 1 });
+      c.push({ v: x / 10, cost: 1.5 });
+      if (x >= 100) c.push({ v: Math.round(x) / 100, cost: 2 });
+    }
+    return c;
+  }
+  function energyErr(v) {
+    if (v.kcal == null || !(v.kcal > 0) || v.carb == null || v.fat == null || v.protein == null) return null;
+    return Math.abs(4 * v.carb + 4 * v.protein + 9 * v.fat - v.kcal) / v.kcal;
+  }
+  function repair(v) {
+    const keys = ['carb', 'sugar', 'protein', 'fat', 'fiber'], opts = keys.map(k => candidates(v[k]));
+    let best = null;
+    const pick = (i, cur, cost) => {
+      if (i === keys.length) {
+        const t = {}; keys.forEach((k, j) => { t[k] = cur[j] ? cur[j].v : null; }); t.kcal = v.kcal;
+        let pen = cost;
+        if (t.carb != null && t.sugar != null && t.sugar > t.carb * 1.02 + 0.2) pen += 8;
+        if (t.carb != null && t.fiber != null && t.fiber > t.carb * 1.02 + 0.2) pen += 8;
+        keys.forEach(k => { if (t[k] != null && t[k] > 100) pen += 8; });
+        const e = energyErr(t);
+        if (e != null) pen += 10 * Math.max(0, e - 0.25);
+        else if (v.kcal > 0) {                       // 일부 항목을 못 읽었으면 '넘치는지'만 확인
+          const part = 4 * (t.carb || 0) + 4 * (t.protein || 0) + 9 * (t.fat || 0);
+          if (part > v.kcal * 1.25 + 5) pen += 8;
+        }
+        if (!best || pen < best.pen) best = { pen, t };
+        return;
+      }
+      for (const o of opts[i]) pick(i + 1, cur.concat([o]), cost + (o ? o.cost : 0));
+    };
+    pick(0, [], 0);
+    if (best) keys.forEach(k => { if (v[k] != null) v[k] = best.t[k]; });
+  }
+  /* 읽은 결과가 얼마나 믿을 만한지: 읽은 항목 수 + 열량이 영양소와 맞으면 가산점 */
+  function quality(r) {
+    const e = energyErr(r.values);
+    return r.found + (r.values.kcal != null ? 2 : 0) + (e != null && e <= 0.25 ? 3 : 0) + (r.values.sugar != null && r.values.carb != null && r.values.sugar <= r.values.carb ? 1 : 0);
+  }
+
   function parse(raw) {
     const t = normalize(raw);
     const out = { values: {}, basis: null, found: 0 };
@@ -133,27 +210,25 @@ const LABEL = (function () {
       fat: findAfter(t, /지방/, { notAfter: /포화|트랜스|화|랜스/, gram: true }),
       fiber: findAfter(t, /식이섬유/, { gram: true })
     };
-    // 말이 안 되는 값은 단위 오인식으로 보고 보정 (열량으로 가능한 최대값을 넘는 경우 등)
-    if (v.kcal != null) {
-      v.carb = stripUnitDigit(v.carb, v.kcal / 4 * 1.2 + 2);
-      v.protein = stripUnitDigit(v.protein, v.kcal / 4 * 1.2 + 2);
-      v.fat = stripUnitDigit(v.fat, v.kcal / 9 * 1.2 + 2);
-    } else {
-      ['carb', 'protein', 'fat'].forEach(k => { v[k] = stripUnitDigit(v[k], 100); });   // 열량을 못 읽었을 때: 한 번 분량에 100g을 넘기 어려움
-    }
-    if (v.carb != null) v.sugar = stripUnitDigit(v.sugar, v.carb);
+    repair(v);
     Object.keys(v).forEach(k => { if (v[k] != null && !isNaN(v[k])) { out.values[k] = v[k]; out.found++; } });
 
     // 기준량
     let m;
-    if ((m = t.match(new RegExp(NUM + '(g|ml)당(?!류)')))) out.basis = { amount: toNum(m[1]), unit: m[2], kind: m[1] === '100' ? '100' + m[2] + '당' : m[1] + m[2] + '당' };
+    if ((m = t.match(/(\d*[가-힣]{1,4})\((\d{1,4}(?:\.\d+)?)(g|ml)\)당(?!류)/)))
+      out.basis = { amount: toNum(m[2]), unit: m[3], kind: m[1] + ' ' + m[2] + m[3] + '당' };
+    else if ((m = t.match(new RegExp(NUM + '(g|ml)당(?!류)')))) out.basis = { amount: toNum(m[1]), unit: m[2], kind: m[1] === '100' ? '100' + m[2] + '당' : m[1] + m[2] + '당' };
     else if ((m = t.match(new RegExp('1회(?:제공|섭취)(?:기준)?량[^\\d]{0,3}' + NUM + '(g|ml)'))))
       out.basis = { amount: toNum(m[1]), unit: m[2], kind: '1회 제공량 ' + m[1] + m[2] };
-    else if ((m = t.match(new RegExp('총내용량[^\\d]{0,3}' + NUM + '(g|ml)'))))
+    else if ((m = t.match(new RegExp('총내용량[^\\d]{0,3}' + NUM + '(g|ml)'))) && !/,\d{3}/.test(m[0]))
       out.basis = { amount: toNum(m[1]), unit: m[2], kind: '총 내용량 ' + m[1] + m[2] };
     // 총 내용량(한 병·한 캔 전체) — 기준량과 따로 찾음. 예: 표는 '100ml당'인데 병은 500ml
-    if ((m = t.match(new RegExp('(?:총)?내용량[^\\d]{0,3}' + NUM + '(ml|g|l)')))) {
-      let amt = toNum(m[1]), unit = m[2];
+    const VOL = '(\\d{1,3}(?:,\\d{3})+|\\d{1,4}(?:\\.\\d{1,2})?)';
+    const toVol = x => parseFloat(String(x).replace(/,/g, ''));
+    if ((m = t.match(new RegExp('(?:총)?내용량[^\\d]{0,3}' + VOL + '(ml|g|l)[^\\d]{0,3}\\(' + '(\\d{1,4}(?:\\.\\d+)?)(ml|g)\\s?[x×*]\\s?\\d+')))) {
+      out.volume = { amount: toNum(m[3]), unit: m[4] };               // '3,040ml(190ml x 16팩)' → 한 팩 190ml
+    } else if ((m = t.match(new RegExp('(?:총)?내용량[^\\d]{0,3}' + VOL + '(ml|g|l)')))) {
+      let amt = toVol(m[1]), unit = m[2];
       if (unit === 'l') { amt *= 1000; unit = 'ml'; }
       out.volume = { amount: amt, unit };
     }
