@@ -631,7 +631,13 @@
       msg = `하루 권장 ${T.sugar}g의 <b>${pct}%</b>${val > T.sugarMax ? ` · 공식 상한 ${T.sugarMax}g도 넘어요` : ''}`;
     }
     box.className = cls;
-    box.innerHTML = `이만큼 마시면 당류 <b class="num">${val}g</b> · 각설탕 약 <b>${cubes}개</b>(3g 기준)${msg ? '<br>' + msg : ''}`;
+    let swap = '';
+    if (val >= 10) {
+      const pref = ['americano', 'unsweet_soymilk', 'barley_tea', 'latte', 'zero_cola'];
+      const alts = pref.map(foodById).filter(a => a && a.sugar <= val * 0.5).slice(0, 3);
+      if (alts.length) swap = `<div style="margin-top:10px"><b>이 대신 이런 음료는 어때요?</b><div class="stack" style="margin-top:8px">${alts.map(a => `<button class="btn alt" data-act="pickfood" data-id="${esc(a.id)}">${esc(a.name)} <span class="muted sm">당류 ${a.sugar}g · ${Math.round((val - a.sugar) * 10) / 10}g 줄어요</span></button>`).join('')}</div></div>`;
+    }
+    box.innerHTML = `이만큼 마시면 당류 <b class="num">${val}g</b> · 각설탕 약 <b>${cubes}개</b>(3g 기준)${msg ? '<br>' + msg : ''}${swap}`;
   }
   function saveCustom() {
     const name = $('#cName').value.trim();
