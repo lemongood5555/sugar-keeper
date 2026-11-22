@@ -56,8 +56,16 @@ const LABEL = (function () {
     }
     const worker = await workerPromise;
     const img = await preprocess(file);
-    const r = await worker.recognize(img);
-    return r.data.text || '';
+    // 표 형태 사진은 읽기 방식에 따라 결과 차이가 커서, 항목을 적게 읽으면 다른 방식으로 한 번 더 시도
+    let best = '', bestFound = -1;
+    for (const psm of ['6', '4', '11']) {
+      await worker.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: '1' });
+      const r = await worker.recognize(img);
+      const text = r.data.text || '', f = parse(text).found;
+      if (f > bestFound) { best = text; bestFound = f; }
+      if (bestFound >= 5) break;
+    }
+    return best;
   }
 
   /* ---------- 글자 해석 ---------- */
@@ -70,7 +78,11 @@ const LABEL = (function () {
       .replace(/[ｇＧ]/g, 'g').replace(/[ｍＭ]/g, 'm').replace(/[ｌＬ]/g, 'l')
       .replace(/㎉/g, 'kcal').replace(/㎎/g, 'mg').replace(/㎖/g, 'ml')
       .replace(/\s+/g, '')           // OCR이 한글 사이에 넣는 공백 제거
-      .toLowerCase();
+      .toLowerCase()
+      .replace(/(\d)(?:m[1il|]|rnl|ni)(?![a-z])/g, '$1ml')      // 500mI, 500m1 → 500ml
+      .replace(/(\d)(?:rng|m9|mq)(?![a-z])/g, '$1mg')           // 5rng → 5mg
+      .replace(/kca[1il|]|kral|kcai/g, 'kcal')
+      .replace(/(^|[^a-z0-9])o(?=g(?![a-z]))/g, '$10');         // Og → 0g
   }
 
   /* label 뒤 가까운 곳의 첫 숫자. exclude 접두어(포화·트랜스)가 앞에 붙은 경우는 건너뜀 */
@@ -80,10 +92,25 @@ const LABEL = (function () {
     while ((m = re.exec(t))) {
       if (opts.notAfter && opts.notAfter.test(t.slice(Math.max(0, m.index - 3), m.index))) continue;
       const tail = t.slice(m.index + m[0].length, m.index + m[0].length + 12);
-      const n = tail.match(new RegExp('^[^\\d]{0,5}' + NUM));
-      if (n) return toNum(n[1]);
+      const n = tail.match(/^[^\d]{0,5}(\d{1,4})(?:[.,](\d+))?/);
+      if (!n) continue;
+      let ip = n[1], dp = n[2] || '';
+      if (opts.gram) {
+        // 'g'가 숫자(9·8·6)로 읽혀 소수점 뒤에 붙은 경우: 10.6g → 10.69 → 10.6
+        if (dp.length > 1) dp = dp[0];
+        // 0g가 09·00으로 읽힌 경우
+        if (!dp && ip.length === 2 && ip[0] === '0') ip = '0';
+      }
+      return toNum(ip + (dp ? '.' + dp : ''));
     }
     return null;
+  }
+
+  /* 앞뒤 값이 서로 맞지 않을 때, 끝에 붙은 단위 오인식(9·8·6)을 떼어 봄 */
+  function stripUnitDigit(v, limit) {
+    if (v == null || !Number.isInteger(v) || v < 10 || !(v > limit)) return v;
+    if ([9, 8, 6].includes(v % 10)) { const v2 = Math.floor(v / 10); if (v2 <= limit) return v2; }
+    return v;
   }
 
   function parse(raw) {
@@ -96,12 +123,19 @@ const LABEL = (function () {
     if (kcal == null && kcalDirect) kcal = toNum(kcalDirect[1]);
     const v = {
       kcal,
-      carb: findAfter(t, /탄수화[물불몰]?/),
-      sugar: findAfter(t, /당류/),
-      protein: findAfter(t, /단백[질잘]/),
-      fat: findAfter(t, /지방/, { notAfter: /포화|트랜스|화|랜스/ }),
-      fiber: findAfter(t, /식이섬유/)
+      carb: findAfter(t, /탄수화[물불몰]?/, { gram: true }),
+      sugar: findAfter(t, /당류/, { gram: true }),
+      protein: findAfter(t, /단백[질잘]/, { gram: true }),
+      fat: findAfter(t, /지방/, { notAfter: /포화|트랜스|화|랜스/, gram: true }),
+      fiber: findAfter(t, /식이섬유/, { gram: true })
     };
+    // 말이 안 되는 값은 단위 오인식으로 보고 보정 (열량으로 가능한 최대값을 넘는 경우 등)
+    if (v.kcal != null) {
+      v.carb = stripUnitDigit(v.carb, v.kcal / 4 * 1.2 + 2);
+      v.protein = stripUnitDigit(v.protein, v.kcal / 4 * 1.2 + 2);
+      v.fat = stripUnitDigit(v.fat, v.kcal / 9 * 1.2 + 2);
+    }
+    if (v.carb != null) v.sugar = stripUnitDigit(v.sugar, v.carb);
     Object.keys(v).forEach(k => { if (v[k] != null && !isNaN(v[k])) { out.values[k] = v[k]; out.found++; } });
 
     // 기준량
