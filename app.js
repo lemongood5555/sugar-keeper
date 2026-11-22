@@ -498,7 +498,7 @@
   }
   function foodRows() {
     const P = S.picker, q = norm(P.q || '');
-    const inCat = f => P.cat === '전체' || f.cat === P.cat;
+    const inCat = f => q || P.cat === '전체' || f.cat === P.cat; // 검색어가 있으면 분류와 상관없이 전체에서 찾음
     const hit = f => !q || norm(f.name).includes(q);
     const base = allFoods().filter(f => inCat(f) && hit(f));
     // DB 음식은 검색어가 있거나 '식재료' 분류일 때만 보여줌 (전체 목록이 수천 개라 느려지지 않게)
@@ -524,6 +524,7 @@
     const T = getT();
     if (P.mode === 'list') {
       ov.innerHTML = `<div class="in"><div class="ovhead"><button data-act="closepicker" aria-label="닫기">✕</button><h2>${MEAL_NAME[S.meal]}에 추가할 음식</h2></div>
+        <div class="pad" style="padding-bottom:0"><button class="btn" data-act="drinklabel">📷 음료 라벨 찍어서 당 확인</button></div>
         <div class="search"><input id="q" type="search" placeholder="음식 이름 (예: 잡곡밥, 사과)" value="${esc(P.q)}" autocomplete="off" /></div>
         <div class="chips" id="chips">${chipRow()}</div>
         <div id="foodlist">${foodRows()}</div>
@@ -562,7 +563,8 @@
     } else if (P.mode === 'custom') {
       ov.innerHTML = `<div class="in"><div class="ovhead"><button data-act="backlist" aria-label="뒤로">‹</button><h2>음식 직접 추가</h2></div>
         <div style="margin-top:18px"><label class="labelbtn">📷 영양성분표 사진으로 자동 입력<input type="file" accept="image/*" id="labelPhoto" hidden></label>
-        <p id="labelStatus" class="muted sm" style="margin:8px 20px 0"></p><div id="labelBasis" class="note hidden" style="margin:10px 20px 0"></div></div>
+        <p id="labelStatus" class="muted sm" style="margin:8px 20px 0"></p><div id="labelBasis" class="note hidden" style="margin:10px 20px 0"></div>
+        <div id="sugarPreview" class="hidden" style="margin:10px 20px 0"></div></div>
         <div class="pad" style="margin-top:20px">
           <div class="field"><label for="cName">음식 이름</label><div class="inp"><input id="cName" placeholder="예: 통밀 크래커" /></div></div>
           <div class="pair"><div class="field"><label for="cKcal">열량</label><div class="inp"><input id="cKcal" type="number" inputmode="decimal" /><span class="u">kcal</span></div></div>
@@ -604,10 +606,32 @@
     const miss = Object.keys(names).filter(k => r.values[k] == null).map(k => names[k]);
     st.textContent = `${r.found}개 항목을 읽었어요. 숫자가 맞는지 꼭 확인해 주세요.` + (miss.length ? ` 못 읽은 항목: ${miss.join(', ')}` : '');
     if (r.basis) {
-      box.innerHTML = `읽은 값의 기준은 <b>${esc(r.basis.kind)}</b>이에요. 일부만 드시면 아래에 먹은 양을 적어 주세요.`; box.classList.remove('hidden');
-      $('#eatUnit').textContent = `(${r.basis.unit})`; $('#cEat').value = r.basis.amount; eat.classList.remove('hidden');
-      if (!$('#cUnit').value) $('#cUnit').value = r.basis.kind.includes('1회') ? '1회 제공량' : r.basis.kind.includes('총') ? '1개(전체)' : '';
+      const whole = r.volume && r.volume.unit === r.basis.unit && r.volume.amount > 0;
+      box.innerHTML = whole
+        ? `표의 숫자는 <b>${esc(r.basis.kind)}</b> 기준이에요. 내용량이 <b>${r.volume.amount}${r.volume.unit}</b>라서 <b>한 병(캔) 전부 마신 걸로</b> 계산했어요. 일부만 마셨다면 아래 양을 바꿔 주세요.`
+        : `읽은 값의 기준은 <b>${esc(r.basis.kind)}</b>이에요. 마신 양이 다르면 아래에 적어 주세요.`;
+      box.classList.remove('hidden');
+      $('#eatUnit').textContent = `(${r.basis.unit})`; $('#cEat').value = whole ? r.volume.amount : r.basis.amount; eat.classList.remove('hidden');
+      if (!$('#cUnit').value) $('#cUnit').value = whole ? '1개(전체)' : r.basis.kind.includes('1회') ? '1회 제공량' : r.basis.kind.includes('총') ? '1개(전체)' : '';
     } else { box.innerHTML = '기준량(100g당·1회 제공량)을 찾지 못했어요. 읽은 값이 어느 기준인지 확인해 주세요.'; box.classList.remove('hidden'); eat.classList.add('hidden'); }
+    updatePreview();
+  }
+  function updatePreview() {
+    const box = $('#sugarPreview'); if (!box) return;
+    const sg = parseFloat($('#cSugar').value);
+    if (!(sg >= 0) || $('#cSugar').value === '') { box.classList.add('hidden'); return; }
+    let scale = 1;
+    if (labelBasis && !$('#eatRow').classList.contains('hidden')) { const eat = parseFloat($('#cEat').value); if (eat > 0) scale = eat / labelBasis.amount; }
+    const val = Math.round(sg * scale * 10) / 10, T = getT();
+    const cubes = Math.round(val / 3 * 10) / 10;
+    let cls = 'note good', msg = '';
+    if (T) {
+      const pct = Math.round(val / T.sugar * 100);
+      cls = val > T.sugarMax ? 'note bad' : val > T.sugar ? 'note bad' : pct > 50 ? 'note' : 'note good';
+      msg = `하루 권장 ${T.sugar}g의 <b>${pct}%</b>${val > T.sugarMax ? ` · 공식 상한 ${T.sugarMax}g도 넘어요` : ''}`;
+    }
+    box.className = cls;
+    box.innerHTML = `이만큼 마시면 당류 <b class="num">${val}g</b> · 각설탕 약 <b>${cubes}개</b>(3g 기준)${msg ? '<br>' + msg : ''}`;
   }
   function saveCustom() {
     const name = $('#cName').value.trim();
@@ -668,7 +692,7 @@
         <p class="muted" style="margin:0 0 10px">지금 위치 근처에서 지도 앱으로 찾아봐요. 당뇨 식단 인증 식당 목록은 없어서, 고르기 쉬운 메뉴로 검색해요.</p>
         <div class="maps">${qs.map(q => `<div class="mq"><span>${esc(q)}</span><a class="btn alt sm" href="https://map.naver.com/p/search/${enc(q)}" target="_blank" rel="noopener">네이버지도</a><a class="btn alt sm" href="https://map.kakao.com/link/search/${enc(q)}" target="_blank" rel="noopener">카카오맵</a></div>`).join('')}</div>
         <ul class="tips"><li>밥은 반 공기 먼저 덜어 두고, 잡곡밥이 있으면 바꿔 달라고 하세요.</li><li>구이·찜·샤브샤브처럼 양념이 적은 메뉴가 고르기 쉬워요. 양념갈비·찜닭·탕수육은 당이 많아요.</li><li>회덮밥·초밥은 밥 양이 많아요. 초고추장과 초밥 밥에도 설탕이 들어가요.</li><li>음료는 물이나 보리차로 주문하세요.</li></ul></section>
-      <section class="sec"><h2>당류 기준</h2><p class="muted" style="margin:0 0 6px">한국인 영양소 섭취기준은 총당류 20% 이내, 첨가당 10% 이내이고 가당 음료는 가능한 줄이도록 해요. 20%는 넘으면 안 되는 한계선이라, 이 앱은 모두에게 에너지의 10%를 상한으로 잡아요. 2,000kcal라면 50g이에요.</p></section>
+      <section class="sec"><h2>당류 기준</h2><p class="muted" style="margin:0 0 6px">한국인 영양소 섭취기준은 총당류 20% 이내, 첨가당 10% 이내이고 가당 음료는 가능한 줄이도록 해요. 이 앱은 총당류 기준으로 에너지의 10%(2,000kcal라면 50g)를 권장, 20%(100g)를 공식 상한으로 두 단계로 보여 줘요.</p></section>
       <section class="sec"><h2>양 가늠하기</h2><p class="muted" style="margin:0">밥 1공기(210g)는 일반 밥공기에 평평하게 담은 양이에요. 고기·생선 1인분은 손바닥 크기, 견과류 한 줌은 약 25g이에요.</p>
         <p class="fine">가격은 공공데이터에 없어 앱이 정한 추정치예요. 밥·국·반찬은 집밥 재료비, 덮밥·초밥·탕 같은 일품요리는 외식 1인분 기준이라 지역과 가게마다 달라요.</p></section>`;
   }
@@ -962,6 +986,7 @@
       case 'closepicker': closePicker(); break;
       case 'backlist': S.picker.mode = 'list'; renderPicker(); break;
       case 'opencustom': S.picker.mode = 'custom'; labelBasis = null; renderPicker(); break;
+      case 'drinklabel': S.picker.mode = 'custom'; labelBasis = null; renderPicker(); { const ip = $('#labelPhoto'); if (ip) ip.click(); } break;
       case 'pickcat': S.picker.cat = d.c; $('#chips').innerHTML = chipRow(); $('#foodlist').innerHTML = foodRows(); break;
       case 'pickfood': S.picker.mode = 'amount'; S.picker.food = foodById(d.id); S.picker.ratio = 1; S.picker.pb = S.picker.pa = null; renderPicker(); break;
       case 'ratio': S.picker.ratio = Number(d.r); { const sc = $('#overlay').scrollTop; renderPicker(); $('#overlay').scrollTop = sc; } break;
@@ -1006,6 +1031,7 @@
     const t = e.target;
     if (t.dataset.w) S.wiz.d[t.dataset.w] = t.value;
     else if (t.id === 'q') { S.picker.q = t.value.trim(); $('#foodlist').innerHTML = foodRows(); }
+    else if (t.id === 'cSugar' || t.id === 'cEat') updatePreview();
   });
   document.addEventListener('change', e => {
     const t = e.target;

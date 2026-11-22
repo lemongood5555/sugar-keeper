@@ -111,6 +111,12 @@ const LABEL = (function () {
       out.basis = { amount: toNum(m[1]), unit: m[2], kind: '1회 제공량 ' + m[1] + m[2] };
     else if ((m = t.match(new RegExp('총내용량[^\\d]{0,3}' + NUM + '(g|ml)'))))
       out.basis = { amount: toNum(m[1]), unit: m[2], kind: '총 내용량 ' + m[1] + m[2] };
+    // 총 내용량(한 병·한 캔 전체) — 기준량과 따로 찾음. 예: 표는 '100ml당'인데 병은 500ml
+    if ((m = t.match(new RegExp('(?:총)?내용량[^\\d]{0,3}' + NUM + '(ml|g|l)')))) {
+      let amt = toNum(m[1]), unit = m[2];
+      if (unit === 'l') { amt *= 1000; unit = 'ml'; }
+      out.volume = { amount: amt, unit };
+    }
     return out;
   }
 
