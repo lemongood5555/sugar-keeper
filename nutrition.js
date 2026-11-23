@@ -63,16 +63,20 @@ const NUTRI = {
     kcal = Math.round(kcal / 50) * 50;
 
     // 단백질(체중 기준): 유지 0.91(KDRI), 감량 1.2, 근육 증가 1.6 g/kg(ISSN 1.4~2.0 범위의 중간). 비만이면 표준체중 기준
-    // 당뇨: 1.3 g/kg 이하(KDIGO·당뇨병성 신증 진행 우려), 신장질환: 0.8 g/kg(대한당뇨병학회)
+    // 신장질환(당뇨병성 신장질환 포함): 0.8 g/kg (KDIGO). 당뇨만 있고 신장질환이 없으면 g/kg 계산값을 에너지의 20% 이내로 제한(KDRI 2025 단백질 10~20%, KDOQI 고단백 ≥20% 회피)
     const refWt = bmi >= 25 ? this.ibw(p) : p.weight;
     let protPerKg = { diet: 1.2, maintain: 0.91, muscle: 1.6 }[p.goal] || 0.91;
     const kidney = this.hasCond(p, 'kidney');
     const dm = this.hasCond(p, 'diabetes');
-    const protCapped = !kidney && dm && protPerKg > 1.3;
-    if (protCapped) protPerKg = 1.3;
+    const dmNote = dm && !kidney;
     if (kidney) protPerKg = 0.8;
     const lbm = this.lbm(p);
     let protein = protPerKg * refWt, protBasis = `${protPerKg}g × ${Math.round(refWt * 10) / 10}kg`;
+    let protCapped = false;
+    if (dmNote) {
+      const capG = (kcal * 0.20) / 4;
+      if (protein > capG) { protein = capG; protCapped = true; protBasis = `에너지의 20% (${kcal}kcal ÷ 5 ÷ 4)`; }
+    }
     protein = Math.round(protein);
 
     const fat = Math.round((kcal * 0.25) / 9);
@@ -88,7 +92,7 @@ const NUTRI = {
     const meals = {};
     for (const m in MEAL_SPLIT) meals[m] = Math.round(kcal * MEAL_SPLIT[m]);
 
-    return { eer: Math.round(eer), kcal, protein, protPerKg, protBasis, protCapped, refWt, lbm, plan, fat, carb, sugar, sugarMax, sugarPct, fiber, meals, kidney };
+    return { eer: Math.round(eer), kcal, protein, protPerKg, protBasis, dmNote, protCapped, refWt, lbm, plan, fat, carb, sugar, sugarMax, sugarPct, fiber, meals, kidney };
   },
 
   /* 영양판정 (ABCD 중 A·B·C 일부) */

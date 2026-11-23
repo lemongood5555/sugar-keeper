@@ -800,7 +800,7 @@
         ${planNote(T, p)}
         ${p.cuisines && p.cuisines.length || p.budget ? `<p class="muted sm" style="margin:8px 0 0">식단 예시: ${p.cuisines && p.cuisines.length ? esc(p.cuisines.map(c => (CUISINES.find(x => x[0] === c) || [])[1]).join(', ')) + ' 위주' : '골고루'}${p.budget ? ` · 일주일 식비 ${won(p.budget)}` : ''}</p>` : ''}
         ${T.kidney ? '<div class="note">신장질환이 있어 단백질을 0.8g/kg으로 낮췄어요. 처방량이 있다면 그 값을 따르세요.</div>' : ''}
-        ${T.protCapped ? '<div class="note">당뇨가 있어 단백질은 체중 1kg당 1.3g을 넘지 않게 잡았어요. 고단백식은 당뇨로 약해진 신장에 부담이 될 수 있어요.</div>' : ''}</section>
+        ${T.protCapped ? '<div class="note">당뇨가 있어 단백질을 하루 에너지의 20% 이내로 맞췄어요. 신장질환이 있다면 내 정보에서 신장질환을 선택해 주세요. 의료진의 안내가 있다면 그것을 우선하세요.</div>' : (T.dmNote ? '<div class="note">당뇨가 있을 때 단백질은 하루 에너지의 20% 이내로 맞춰요. 신장질환이 있다면 내 정보에서 신장질환을 선택해 주세요. 의료진의 안내가 있다면 그것을 우선하세요.</div>' : '')}</section>
       ${S.justFinished ? `<section class="sec"><button class="btn" data-act="startlog" data-m="${autoMeal()}">첫 끼니 기록하기</button></section>` : ''}
       <section class="sec"><h2>영양판정</h2>${groups.map(g => `<h3>${g}</h3>${rows.filter(r => r.grp === g).map(r => `<div class="judge"><div class="a">${r.name}<small>${esc(r.note)}</small></div><div class="b"><b>${esc(r.val)}</b>${r.lv === 'info' ? '' : `<span class="tag ${dot[r.lv]}">${lab[r.lv]}</span>`}</div></div>`).join('')}`).join('')}</section>
       ${appCard()}
@@ -878,7 +878,8 @@
       <section class="sec"><h2>단백질</h2>
         <p>한국 성인의 단백질 권장섭취량은 체중 1kg당 약 0.91g이에요. 운동으로 근육을 늘리거나 유지하는 사람은 국제스포츠영양학회가 하루 1.4~2.0g/kg을 권고해요.</p>
         <p>당뇨병성 신장질환이 있으면 투석 전 단계에서 0.8g/kg을 권고하고, 1.3g/kg을 넘기지 않게 해요(KDIGO). 그래서 신장질환이 있다고 입력하면 0.8g/kg으로 계산해요.</p>
-        <p class="muted sm">출처: ${A('https://doi.org/10.1186/s12970-017-0177-8', 'Jäger R, et al. ISSN Position Stand: protein and exercise. J Int Soc Sports Nutr 2017')} / KDIGO 당뇨병·만성콩팥병 영양 권고(2012) / 한국인 영양소 섭취기준</p></section>
+        <p>신장질환이 없는 당뇨는 일반 성인과 같게 단백질을 에너지의 15~20% 안팎으로 보고, 2025 섭취기준의 단백질 범위(10~20%)와 미국 신장재단 KDOQI의 고단백(20% 이상) 회피 권고에 맞춰 <b>20%를 넘지 않게</b> 제한해요. 의료진 안내가 있다면 그것을 우선하세요.</p>
+        <p class="muted sm">출처: ${A('https://doi.org/10.1186/s12970-017-0177-8', 'Jäger R, et al. ISSN Position Stand: protein and exercise. J Int Soc Sports Nutr 2017')} / KDIGO 당뇨병·만성콩팥병 영양 권고(2012) / KDOQI 당뇨병·만성콩팥병 권고(2007) / 한국인 영양소 섭취기준</p></section>
       <section class="sec"><h2>식후 혈당</h2>
         <p>미국당뇨병학회는 대부분의 성인에서 식전 혈당 80~130mg/dL, 식후 최고 혈당 180mg/dL 미만을 목표로 제시해요. 식후 혈당은 식사 시작 1~2시간 뒤에 재요. 당지킴은 식후 2시간 값을 받아 180 이상이면 높음으로 표시해요.</p>
         <p class="muted sm">목표는 사람마다 다르게 정해질 수 있어요. 출처: ${A('https://pmc.ncbi.nlm.nih.gov/articles/PMC10725808/table/T6.3', 'ADA Standards of Care in Diabetes, Glycemic Targets (Diabetes Care)')}</p></section>
