@@ -308,3 +308,12 @@ pre.raw { white-space: pre-wrap; font-size: 0.78rem; background: var(--white); p
 
 .meter .bar.two{position:relative;overflow:visible}
 .meter .bar.two u{position:absolute;top:-3px;bottom:-3px;width:2px;background:#4a5a52;border-radius:1px}
+
+/* 영양성분 직접 입력: 항목마다 한 줄(이름 왼쪽, 입력칸 오른쪽)로 폰 화면 안에 다 보이게 */
+.nlist { margin-bottom: 14px; }
+.nlist .field { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.nlist .field > label { margin: 0; width: 5.2em; flex: none; font-size: 1rem; }
+.nlist .inp { flex: 1; min-width: 0; padding: 0 14px; }
+.nlist .inp input { height: 50px; font-size: 1.2rem; width: 100%; }
+.nlist input[type=number]::-webkit-outer-spin-button, .nlist input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.nlist input[type=number] { -moz-appearance: textfield; appearance: textfield; }

@@ -567,7 +567,7 @@
         <div id="sugarPreview" class="hidden" style="margin:10px 20px 0"></div></div>
         <div class="pad" style="margin-top:20px">
           <div class="field"><label for="cName">음식 이름</label><div class="inp"><input id="cName" placeholder="예: 통밀 크래커" /></div></div>
-          <div class="pair"><div class="field"><label for="cKcal">열량</label><div class="inp"><input id="cKcal" type="number" inputmode="decimal" /><span class="u">kcal</span></div></div>
+          <div class="nlist"><div class="field"><label for="cKcal">열량</label><div class="inp"><input id="cKcal" type="number" inputmode="decimal" /><span class="u">kcal</span></div></div>
           <div class="field"><label for="cCarb">탄수화물</label><div class="inp"><input id="cCarb" type="number" inputmode="decimal" /><span class="u">g</span></div></div>
           <div class="field"><label for="cSugar">당류</label><div class="inp"><input id="cSugar" type="number" inputmode="decimal" /><span class="u">g</span></div></div>
           <div class="field"><label for="cProt">단백질</label><div class="inp"><input id="cProt" type="number" inputmode="decimal" /><span class="u">g</span></div></div>
