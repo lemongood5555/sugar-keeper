@@ -163,8 +163,8 @@ const NUTRI = {
     const r = total / limit, rmax = (max || limit * 2) / limit;
     if (r <= 0.5) return { score: 5, msg: '아주 잘 지키셨어요! 권장량의 절반 이하입니다.' };
     if (r <= 0.75) return { score: 4, msg: '양호합니다. 지금처럼 유지해 주세요.' };
-    if (r <= 1.0) return { score: 3, msg: '권장량 안이지만 여유가 거의 없어요. 간식·음료를 점검해 보세요.' };
-    if (r <= rmax) return { score: 2, msg: '앱 권장(열량의 10%)은 넘었지만 공식 상한(총당류 20%) 안이에요. 아래 대체 식품을 참고해 주세요.' };
+    if (r <= 1.0) return { score: 3, msg: '한도 안이지만 여유가 거의 없어요. 간식·음료를 점검해 보세요.' };
+    if (r <= rmax) return { score: 2, msg: '앱 한도(열량의 10%)는 넘었지만 공식 상한(총당류 20%) 안이에요. 아래 대체 식품을 참고해 주세요.' };
     return { score: 1, msg: '공식 상한(총당류 20%)도 넘었어요. 단 음료·간식부터 줄여 보세요.' };
   },
 
