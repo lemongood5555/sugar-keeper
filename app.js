@@ -110,9 +110,9 @@
   function meterSugar(label, val, T) {
     const pct = T.sugarMax ? Math.min(100, (val / T.sugarMax) * 100) : 0;
     const cls = val > T.sugarMax ? 'bad' : val > T.sugar ? 'warn' : '';
-    return `<div class="meter"><div class="h"><b>${label}</b><span class="num"><b>${r1(val)}</b> / 권장 ${T.sugar}g</span></div>
+    return `<div class="meter"><div class="h"><b>${label}</b><span class="num"><b>${r1(val)}</b> / 한도 ${T.sugar}g</span></div>
       <div class="bar two"><i class="${cls}" style="width:${pct}%"></i><u style="left:${T.sugarMax ? T.sugar / T.sugarMax * 100 : 50}%"></u></div>
-      <p class="muted sm" style="margin:4px 0 0">초록 ~${T.sugar}g 권장 · 노랑 ~${T.sugarMax}g 공식 상한 안 · 빨강 공식 상한 초과</p></div>`;
+      <p class="muted sm" style="margin:4px 0 0">초록 ~${T.sugar}g 한도 안 · 노랑 ~${T.sugarMax}g 공식 상한 안 · 빨강 공식 상한 초과</p></div>`;
   }
 
   /* ---------- 대체 추천 ---------- */
@@ -419,7 +419,7 @@
 
     return `${dateBar('하루 기록')}
       <section class="tray"><p class="lead">${lead}</p><div class="big ${entries.length && rem < 0 ? 'over' : ''}">${bigHtml}</div>
-        <p class="sub num">당류는 ${T.sugar}g 권장 · 공식 상한 ${T.sugarMax}g · 지금까지 ${r1(t.sugar)}g</p>
+        <p class="sub num">당류 한도 ${T.sugar}g · 공식 상한 ${T.sugarMax}g · 지금까지 ${r1(t.sugar)}g</p>
         <div class="slots" aria-label="끼니별 탄수화물">${slots}</div>
         <div class="gl"><div><b class="stars" aria-label="혈당 관리 ${gs}점">${[1, 2, 3, 4, 5].map(i => `<span class="${entries.length && i <= gs ? '' : 'off'}">★</span>`).join('')}</b><span>${entries.length ? `혈당 관리 ${gs}점 / 5점` : '아직 기록이 없어요'}</span></div>
         <div><b class="num">${Math.round(t.kcal)}</b><span>kcal · 목표 ${T.kcal}</span></div></div>
@@ -630,7 +630,7 @@
     if (T) {
       const pct = Math.round(val / T.sugar * 100);
       cls = val > T.sugarMax ? 'note bad' : val > T.sugar ? 'note bad' : pct > 50 ? 'note' : 'note good';
-      msg = `하루 권장 ${T.sugar}g의 <b>${pct}%</b>${val > T.sugarMax ? ` · 공식 상한 ${T.sugarMax}g도 넘어요` : ''}`;
+      msg = `하루 한도 ${T.sugar}g의 <b>${pct}%</b>${pct >= 100 ? ' · 한도를 넘어요' : pct >= 50 ? ' · 한 번에 절반 넘게 써요' : ''}${val > T.sugarMax ? ` · 공식 상한 ${T.sugarMax}g도 넘어요` : ''}`;
     }
     box.className = cls;
     let swap = '';
@@ -700,7 +700,7 @@
         <p class="muted" style="margin:0 0 10px">지금 위치 근처에서 지도 앱으로 찾아봐요. 당뇨 식단 인증 식당 목록은 없어서, 고르기 쉬운 메뉴로 검색해요.</p>
         <div class="maps">${qs.map(q => `<div class="mq"><span>${esc(q)}</span><a class="btn alt sm" href="https://map.naver.com/p/search/${enc(q)}" target="_blank" rel="noopener">네이버지도</a><a class="btn alt sm" href="https://map.kakao.com/link/search/${enc(q)}" target="_blank" rel="noopener">카카오맵</a></div>`).join('')}</div>
         <ul class="tips"><li>밥은 반 공기 먼저 덜어 두고, 잡곡밥이 있으면 바꿔 달라고 하세요.</li><li>구이·찜·샤브샤브처럼 양념이 적은 메뉴가 고르기 쉬워요. 양념갈비·찜닭·탕수육은 당이 많아요.</li><li>회덮밥·초밥은 밥 양이 많아요. 초고추장과 초밥 밥에도 설탕이 들어가요.</li><li>음료는 물이나 보리차로 주문하세요.</li></ul></section>
-      <section class="sec"><h2>당류 기준</h2><p class="muted" style="margin:0 0 6px">한국인 영양소 섭취기준은 총당류 20% 이내, 첨가당 10% 이내이고 가당 음료는 가능한 줄이도록 해요. 이 앱은 총당류 기준으로 에너지의 10%(2,000kcal라면 50g)를 권장, 20%(100g)를 공식 상한으로 두 단계로 보여 줘요.</p></section>
+      <section class="sec"><h2>당류 기준</h2><p class="muted" style="margin:0 0 6px">한국인 영양소 섭취기준은 총당류 20% 이내, 첨가당 10% 이내이고 가당 음료는 가능한 줄이도록 해요. 이 앱은 총당류 기준으로 에너지의 10%(2,000kcal라면 50g)를 넘지 않기 위한 한도, 20%(100g)를 공식 상한으로 두 단계로 보여 줘요. 한도는 목표가 아니라 넘지 말아야 할 선이고, 적을수록 좋아요.</p></section>
       <section class="sec"><h2>양 가늠하기</h2><p class="muted" style="margin:0">밥 1공기(210g)는 일반 밥공기에 평평하게 담은 양이에요. 고기·생선 1인분은 손바닥 크기, 견과류 한 줌은 약 25g이에요.</p>
         <p class="fine">가격은 공공데이터에 없어 앱이 정한 추정치예요. 밥·국·반찬은 집밥 재료비, 덮밥·초밥·탕 같은 일품요리는 외식 1인분 기준이라 지역과 가게마다 달라요.</p></section>`;
   }
@@ -749,7 +749,7 @@
       ${rec.length ? `<section class="sec"><h2>하루 평균 섭취</h2><table class="rt"><tbody>
         ${row('열량', `${Math.round(mean('kcal'))}kcal`, `목표의 ${pct(mean('kcal'), T.kcal)}%`)}
         ${row('탄수화물', `${Math.round(mean('carb'))}g`, `목표의 ${pct(mean('carb'), T.carb)}%`)}
-        ${row('당류', `${r1(mean('sugar'))}g`, `권장의 ${pct(mean('sugar'), T.sugar)}% · 공식 상한의 ${pct(mean('sugar'), T.sugarMax)}%`)}
+        ${row('당류', `${r1(mean('sugar'))}g`, `한도의 ${pct(mean('sugar'), T.sugar)}% · 공식 상한의 ${pct(mean('sugar'), T.sugarMax)}%`)}
         ${row('단백질', `${Math.round(mean('protein'))}g`, `목표의 ${pct(mean('protein'), T.protein)}%`)}
         ${row('식이섬유', `${r1(mean('fiber'))}g`, `목표의 ${pct(mean('fiber'), T.fiber)}%`)}
         </tbody></table>
@@ -793,9 +793,9 @@
     return `<div class="top"><h1>${S.justFinished ? '목표가 정해졌어요' : '내 정보'}</h1></div>
       <section class="sec" style="padding-top:6px"><p class="muted" style="margin:0 0 12px">${esc(p.name || '')} · ${p.sex === 'M' ? '남' : '여'} ${p.age}세 · ${p.height}cm · ${p.weight}kg${p.bodyFat ? ` · 체지방 ${p.bodyFat}%` : ''} · 목표 ${goalTxt}</p>
         <div class="kpis"><div><b class="num">${T.kcal}</b><span>하루 열량 (kcal)</span></div><div><b class="num">${T.carb}g</b><span>탄수화물 · 열량의 ${Math.round(T.carb * 4 / T.kcal * 100)}%</span></div>
-          <div><b class="num">${T.sugar}g</b><span>당류 권장 (총당류, 열량의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${esc(T.protBasis)})</span></div>
+          <div><b class="num">${T.sugar}g</b><span>당류 한도 · 넘지 않기 (총당류, 열량의 ${Math.round(T.sugarPct * 100)}%)</span></div><div><b class="num">${T.protein}g</b><span>단백질 (${esc(T.protBasis)})</span></div>
           <div><b class="num">${T.fat}g</b><span>지방 (25%)</span></div><div><b class="num">${T.fiber}g</b><span>식이섬유</span></div></div>
-        <p class="muted sm" style="margin:10px 0 0">당류 공식 상한(총당류 20%)은 ${T.sugarMax}g이에요. 식약처 DB에는 첨가당이 따로 없어 총당류로 세요. 권장 10%는 첨가당 권고(10% 이내)를 총당류에 보수적으로 적용한 값이에요.</p>
+        <p class="muted sm" style="margin:10px 0 0"><b>당류 한도는 목표가 아니라 넘지 말아야 할 선이에요. 적을수록 좋아요.</b> 공식 상한(총당류 20%)은 ${T.sugarMax}g이에요. 식약처 DB에는 첨가당이 따로 없어 총당류로 세요. 한도 10%는 첨가당 권고(10% 이내)를 총당류에 보수적으로 적용한 값이에요.</p>
         <p class="muted sm" style="margin:10px 0 0">에너지필요추정량 ${T.eer}kcal 기준이에요. 의사나 영양사가 정해 준 목표가 있다면 그 값을 따르세요. <button type="button" class="lnk" data-act="nav" data-v="evidence">계산 근거 보기</button></p>
         ${planNote(T, p)}
         ${p.cuisines && p.cuisines.length || p.budget ? `<p class="muted sm" style="margin:8px 0 0">식단 예시: ${p.cuisines && p.cuisines.length ? esc(p.cuisines.map(c => (CUISINES.find(x => x[0] === c) || [])[1]).join(', ')) + ' 위주' : '골고루'}${p.budget ? ` · 일주일 식비 ${won(p.budget)}` : ''}</p>` : ''}
@@ -852,7 +852,7 @@
       <section class="sec"><h2>기록 백업</h2><p>기록은 이 폰 안에만 저장돼요. 앱을 지우거나 폰을 바꾸면 사라질 수 있으니 가끔 <b>내 정보 → 기록 백업 파일 저장</b>을 눌러 파일을 카카오톡 "나에게 보내기"나 드라이브에 보관하세요. 새 폰에서는 같은 화면의 <b>백업 불러오기</b>로 되돌려요.</p></section>
       <section class="sec"><h2>자주 묻는 질문</h2>
         <p><b>숫자가 영양성분표와 달라요.</b> 식약처 DB는 대표 조리법의 평균값이에요. 제품이나 집밥은 다를 수 있어서 정확히 알고 싶은 음식은 직접 추가로 라벨 값을 넣으세요.</p>
-        <p><b>당류 막대의 초록·노랑·빨강은 무슨 뜻이에요?</b> 초록은 앱 권장(열량의 10%) 안, 노랑은 권장은 넘었지만 공식 상한(총당류 20%) 안, 빨강은 공식 상한을 넘은 거예요. 자세한 기준은 계산 근거·출처에 있어요.</p>
+        <p><b>당류 막대의 초록·노랑·빨강은 무슨 뜻이에요?</b> 초록은 앱 한도(열량의 10%) 안, 노랑은 한도는 넘었지만 공식 상한(총당류 20%) 안, 빨강은 공식 상한을 넘은 거예요. 자세한 기준은 계산 근거·출처에 있어요.</p>
         <p><b>목표가 이상해 보여요.</b> 체중·키·활동량이 맞는지 내 정보에서 확인하세요. 의사나 영양사가 정해 준 목표가 있다면 그 값이 먼저예요.</p>
         <p><b>수정한 내용이 안 보여요.</b> 앱을 완전히 닫았다가 다시 열어 보세요.</p></section>
       <p class="fine">이 앱은 식사 기록과 교육을 돕는 도구예요. 진단·처방을 대신하지 않아요.</p>
@@ -872,7 +872,7 @@
         <p class="muted sm">출처: 보건복지부 2025 한국인 영양소 섭취기준 개정 보도(2025.12.31)</p></section>
       <section class="sec"><h2>당류</h2>
         <p>2025 섭취기준은 총당류를 에너지의 20% 이내, 첨가당(설탕·액상과당·물엿·꿀·시럽·농축과일주스 등)을 10% 이내로 제한하고, 주요 급원인 가당음료는 가능한 줄이라고 해요. 2020 기준의 총당류 하한(10%)은 2025에서 없어졌어요.</p>
-        <p>식약처 DB에는 첨가당이 따로 없어 당지킴은 <b>총당류</b>로 계산해요. 그래서 두 단계로 보여 줘요. <b>권장</b>은 총당류 에너지의 10%(첨가당 권고를 보수적으로 적용), <b>공식 상한</b>은 총당류 20%예요. 초록은 권장 안, 노랑은 권장은 넘었지만 공식 상한 안, 빨강은 공식 상한 초과예요.</p>
+        <p>식약처 DB에는 첨가당이 따로 없어 당지킴은 <b>총당류</b>로 계산해요. 그래서 두 단계로 보여 줘요. <b>한도</b>는 총당류 에너지의 10%(첨가당 권고를 보수적으로 적용), <b>공식 상한</b>은 총당류 20%예요. 초록은 한도 안, 노랑은 한도는 넘었지만 공식 상한 안, 빨강은 공식 상한 초과예요.</p>
         <p>식품 영양성분표의 당류 기준치는 하루 100g(2,000kcal 기준)이에요.</p>
         <p class="muted sm">출처: 보건복지부 2025 한국인 영양소 섭취기준 / 식품의약품안전처 영양성분 표시 기준치</p></section>
       <section class="sec"><h2>단백질</h2>
