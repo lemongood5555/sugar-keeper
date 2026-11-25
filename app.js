@@ -430,11 +430,12 @@
       ${entries.length ? `<section class="sec"><h2>오늘의 평가</h2>
         <p style="margin:0">탄수화물 <b>${cs.score}점</b> · 당류 <b>${sc.score}점</b></p>
         <p class="muted" style="margin:4px 0 0">${cs.score <= sc.score ? cs.msg : sc.msg}</p>${notes}
-        ${highs.length ? `<h3>이렇게 바꿔 보세요</h3>${highs.map(e => swapHtml(e, T)).join('')}` : ''}</section>
+      </section>
       <section class="sec"><h2>영양성분</h2>
         ${meter('탄수화물 (전분 포함)', t.carb, T.carb, 'g')}${meterSugar('당류 (총당류)', t.sugar, T)}
         ${meter('열량', t.kcal, T.kcal, 'kcal')}${meter('단백질', t.protein, T.protein, 'g', 'min')}
-        ${meter('식이섬유', t.fiber, T.fiber, 'g', 'min')}${meter('지방', t.fat, T.fat, 'g')}</section>` : ''}
+        ${meter('식이섬유', t.fiber, T.fiber, 'g', 'min')}${meter('지방', t.fat, T.fat, 'g')}</section>
+      ${highs.length ? `<section class="sec"><h2>이렇게 바꿔 보세요</h2>${highs.map(e => swapHtml(e, T)).join('')}</section>` : ''}` : ''}
       <section class="sec"><h2>최근 7일 탄수화물</h2><div class="week">
         <div class="lim" style="bottom:calc(${(T.carb / maxV) * 100}% * .8 + 22px)"></div>
         ${days.map(d => `<div class="col"><span class="num">${d.v ? Math.round(d.v) : ''}</span><i class="${d.v > T.carb ? 'bad' : ''}" style="height:${(d.v / maxV) * 80}%"></i>${d.label}</div>`).join('')}
